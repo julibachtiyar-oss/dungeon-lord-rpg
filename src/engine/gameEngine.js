@@ -1,6 +1,8 @@
 import { sound } from './soundEngine';
 import { isInsideWalkableDungeon } from './dungeonGenerator';
 import { LOOT_TABLE } from '../constants/items';
+import { SpriteRenderer } from './spriteRenderer';
+import { DungeonTileRenderer } from './dungeonTileRenderer';
 
 export class GameEngine {
   constructor(canvas, { 
@@ -28,6 +30,8 @@ export class GameEngine {
     this.isRunning = false;
     this.lastTime = performance.now();
     this.animId = null;
+    this.gameTime = 0;
+    this.torchTimer = 0;
 
     // Camera with Screen Shake
     this.camera = { 
@@ -550,6 +554,7 @@ export class GameEngine {
       this.camera.shakeTimer -= dt;
     }
 
+    this.gameTime += dt;
     this.torchTimer += dt * 4;
 
     // Passive MP Regen
@@ -571,12 +576,18 @@ export class GameEngine {
         vy = this.input.moveY * speed;
       }
 
+      this.player.vx = vx;
+      this.player.vy = vy;
+
       if (isInsideWalkableDungeon(this.player.x + vx, this.player.y, this.player.radius, this.dungeon)) {
         this.player.x += vx;
       }
       if (isInsideWalkableDungeon(this.player.x, this.player.y + vy, this.player.radius, this.dungeon)) {
         this.player.y += vy;
       }
+    } else {
+      this.player.vx = 0;
+      this.player.vy = 0;
     }
 
     // Update Mercenary Party Companion AI
@@ -860,219 +871,42 @@ export class GameEngine {
     ctx.translate(-Math.floor(camX), -Math.floor(camY));
 
     // 1. Draw Dungeon Floor & Rooms
-    ctx.fillStyle = '#0f141c';
+    ctx.fillStyle = '#0a0d14';
     ctx.fillRect(0, 0, this.dungeon.mapWidth, this.dungeon.mapHeight);
 
     // Corridors
-    ctx.fillStyle = '#17202d';
     for (const corr of this.dungeon.corridors) {
-      ctx.fillRect(corr.x, corr.y, corr.w, corr.h);
-      ctx.strokeStyle = '#28364d';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(corr.x, corr.y, corr.w, corr.h);
+      DungeonTileRenderer.drawCorridor(ctx, corr);
     }
 
     // Rooms
     for (const room of this.dungeon.rooms) {
-      ctx.fillStyle = room.isBoss ? '#1f132b' : room.isStart ? '#0f241a' : '#1a2332';
-      ctx.fillRect(room.x, room.y, room.w, room.h);
-
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
-      ctx.lineWidth = 1;
-      for (let rx = room.x; rx <= room.x + room.w; rx += 40) {
-        ctx.beginPath();
-        ctx.moveTo(rx, room.y);
-        ctx.lineTo(rx, room.y + room.h);
-        ctx.stroke();
-      }
-      for (let ry = room.y; ry <= room.y + room.h; ry += 40) {
-        ctx.beginPath();
-        ctx.moveTo(room.x, ry);
-        ctx.lineTo(room.x + room.w, ry);
-        ctx.stroke();
-      }
-
-      ctx.strokeStyle = room.isBoss ? '#7e22ce' : room.isStart ? '#10b981' : '#3a4e6e';
-      ctx.lineWidth = 4;
-      ctx.strokeRect(room.x, room.y, room.w, room.h);
+      DungeonTileRenderer.drawRoom(ctx, room, this.gameTime);
     }
 
     // 2. Draw Torches
     for (const torch of this.dungeon.torches) {
-      const flicker = Math.sin(this.torchTimer + torch.flickerOffset) * 4;
-      const grad = ctx.createRadialGradient(torch.x, torch.y, 4, torch.x, torch.y, 55 + flicker);
-      grad.addColorStop(0, 'rgba(250, 204, 21, 0.45)');
-      grad.addColorStop(0.5, 'rgba(234, 88, 12, 0.15)');
-      grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-
-      ctx.fillStyle = grad;
-      ctx.beginPath();
-      ctx.arc(torch.x, torch.y, 60 + flicker, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.fillStyle = '#f59e0b';
-      ctx.beginPath();
-      ctx.arc(torch.x, torch.y, 4, 0, Math.PI * 2);
-      ctx.fill();
+      DungeonTileRenderer.drawTorch(ctx, torch, this.gameTime);
     }
 
     // 3. Draw Chests
     for (const c of this.chests) {
-      ctx.save();
-      ctx.translate(c.x, c.y);
-      ctx.fillStyle = c.opened ? '#475569' : '#ca8a04';
-      ctx.fillRect(-12, -9, 24, 18);
-      ctx.strokeStyle = c.opened ? '#1e293b' : '#facc15';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(-12, -9, 24, 18);
-      ctx.fillStyle = c.opened ? '#64748b' : '#ffffff';
-      ctx.fillRect(-3, -3, 6, 6);
-      ctx.restore();
+      DungeonTileRenderer.drawChest(ctx, c);
     }
 
     // 4. Draw Monsters & Boss
     for (const m of this.monsters) {
-      ctx.save();
-      ctx.translate(m.x, m.y);
-
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
-      ctx.beginPath();
-      ctx.ellipse(0, m.radius * 0.7, m.radius, m.radius * 0.4, 0, 0, Math.PI * 2);
-      ctx.fill();
-
-      if (m.isBoss) {
-        const bGlow = ctx.createRadialGradient(0, 0, m.radius * 0.5, 0, 0, m.radius * 1.6);
-        bGlow.addColorStop(0, m.glowColor || 'rgba(168, 85, 247, 0.6)');
-        bGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
-        ctx.fillStyle = bGlow;
-        ctx.beginPath();
-        ctx.arc(0, 0, m.radius * 1.6, 0, Math.PI * 2);
-        ctx.fill();
-      }
-
-      ctx.fillStyle = m.flashTimer > 0 ? '#ffffff' : m.color;
-      ctx.beginPath();
-      ctx.arc(0, 0, m.radius, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = '#000000';
-      ctx.lineWidth = 2.5;
-      ctx.stroke();
-
-      ctx.fillStyle = '#ffffff';
-      ctx.beginPath();
-      ctx.arc(-m.radius * 0.3, -m.radius * 0.2, m.radius * 0.22, 0, Math.PI * 2);
-      ctx.arc(m.radius * 0.3, -m.radius * 0.2, m.radius * 0.22, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.fillStyle = '#000000';
-      ctx.beginPath();
-      ctx.arc(-m.radius * 0.3, -m.radius * 0.2, m.radius * 0.12, 0, Math.PI * 2);
-      ctx.arc(m.radius * 0.3, -m.radius * 0.2, m.radius * 0.12, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Health bar
-      const barW = Math.max(30, m.radius * 2);
-      const barH = 4;
-      const hpPct = Math.max(0, m.hp / m.maxHp);
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-      ctx.fillRect(-barW / 2, -m.radius - 12, barW, barH);
-      ctx.fillStyle = m.isBoss ? '#c084fc' : '#ef4444';
-      ctx.fillRect(-barW / 2, -m.radius - 12, barW * hpPct, barH);
-
-      ctx.restore();
+      SpriteRenderer.drawMonster(ctx, m, this.gameTime);
     }
 
     // 5. Draw Mercenary Party Companion
     if (this.mercenary && this.mercenary.hp > 0) {
-      ctx.save();
-      ctx.translate(this.mercenary.x, this.mercenary.y);
-
-      // Companion shadow
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
-      ctx.beginPath();
-      ctx.ellipse(0, 10, 14, 7, 0, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Body circle
-      ctx.fillStyle = this.mercenary.color;
-      ctx.beginPath();
-      ctx.arc(0, 0, 14, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = '#facc15';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-
-      // Companion mini label
-      ctx.font = "bold 9px 'Plus Jakarta Sans', sans-serif";
-      ctx.fillStyle = '#facc15';
-      ctx.textAlign = 'center';
-      ctx.fillText(this.mercenary.name.split(' ')[0], 0, -18);
-
-      // Companion HP bar
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-      ctx.fillRect(-15, -15, 30, 3);
-      ctx.fillStyle = '#22c55e';
-      ctx.fillRect(-15, -15, 30 * Math.max(0, this.mercenary.hp / this.mercenary.maxHp), 3);
-
-      ctx.restore();
+      SpriteRenderer.drawMercenary(ctx, this.mercenary, this.gameTime);
     }
 
     // 6. Draw Player
     if (this.player.hp > 0) {
-      ctx.save();
-      ctx.translate(this.player.x, this.player.y);
-
-      if (this.player.invulnerableTimer > 0 && Math.floor(Date.now() / 60) % 2 === 0) {
-        ctx.globalAlpha = 0.4;
-      }
-
-      if (this.player.ironBastionTimer > 0) {
-        ctx.strokeStyle = '#f97316';
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.arc(0, 0, this.player.radius + 12, 0, Math.PI * 2);
-        ctx.stroke();
-      }
-
-      if (this.player.frenzyTimer > 0) {
-        ctx.strokeStyle = '#facc15';
-        ctx.lineWidth = 2.5;
-        ctx.beginPath();
-        ctx.arc(0, 0, this.player.radius + 8, 0, Math.PI * 2);
-        ctx.stroke();
-      }
-
-      // Shadow
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
-      ctx.beginPath();
-      ctx.ellipse(0, this.player.radius * 0.8, this.player.radius, this.player.radius * 0.4, 0, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Body
-      ctx.fillStyle = this.heroClass.color;
-      ctx.beginPath();
-      ctx.arc(0, 0, this.player.radius, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 2.5;
-      ctx.stroke();
-
-      // Weapon
-      ctx.rotate(this.player.facingAngle);
-      ctx.fillStyle = '#f8fafc';
-      ctx.fillRect(this.player.radius * 0.6, -3, 18, 6);
-      ctx.fillStyle = this.heroClass.secondaryColor;
-      ctx.fillRect(this.player.radius * 0.5, -6, 4, 12);
-
-      if (this.player.isAttacking && this.heroClass.attackType === 'melee') {
-        ctx.strokeStyle = this.player.frenzyTimer > 0 ? '#facc15' : this.heroClass.color;
-        ctx.lineWidth = 5;
-        ctx.beginPath();
-        ctx.arc(0, 0, this.player.radius + 26, -0.7, 0.7);
-        ctx.stroke();
-      }
-
-      ctx.restore();
+      SpriteRenderer.drawHero(ctx, this.player, this.heroClass, this.gameTime);
     }
 
     // 7. Draw Projectiles
