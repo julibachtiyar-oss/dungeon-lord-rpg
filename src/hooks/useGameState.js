@@ -2,57 +2,59 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { HERO_CLASSES } from '../constants/classes';
 import { INITIAL_EQUIPMENT } from '../constants/items';
 import { DUNGEON_ROOMS_TEMPLATE } from '../constants/rooms';
+import { INITIAL_SANCTUARY_GRID, BUILDING_TYPES } from '../constants/dungeonSanctuary';
+import { MERCENARIES } from '../constants/mercenaries';
 import { sound } from '../engine/soundEngine';
 
-const SAVE_KEY = 'DUNGEON_LORD_SAVE_V1';
+const SAVE_KEY = 'DUNGEON_LORD_INOTIA_SAVE_V2';
 
 export function useGameState() {
   const [gameState, setGameState] = useState(() => {
-    // Initial default state
     const defaultState = {
-      gold: 150,
-      gems: 5,
+      gold: 250,
+      gems: 10,
       unclaimedGold: 0,
       lastSaved: Date.now(),
       heroClassId: 'warrior',
       heroLevel: 1,
       heroExp: 0,
-      potionsCount: 3,
+      potionsCount: 5,
+      activeMercenaryId: 'goblin_berserker',
+      gridState: [...INITIAL_SANCTUARY_GRID],
       equipment: { ...INITIAL_EQUIPMENT },
       inventory: [],
       rooms: DUNGEON_ROOMS_TEMPLATE.map(r => ({ ...r, level: 1 })),
-      soundEnabled: true
+      soundEnabled: true,
+      prologueSeen: false
     };
 
     try {
       const saved = localStorage.getItem(SAVE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        // Calculate offline progress
         const now = Date.now();
         const elapsedSec = Math.max(0, (now - (parsed.lastSaved || now)) / 1000);
 
-        const vaultRoom = parsed.rooms?.find(r => r.id === 'gold_vault');
-        const goldPerSec = (vaultRoom?.level || 1) * 2.5;
-        const offlineGold = Math.floor(elapsedSec * goldPerSec);
-
-        // Cap offline gold to 8 hours
+        // Count vaults on grid
+        const vaultCount = (parsed.gridState || INITIAL_SANCTUARY_GRID).filter(c => c === 'vault').length;
+        const goldPerSec = Math.max(3.0, vaultCount * 4.0);
         const maxOfflineSec = 8 * 3600;
-        const cappedOfflineGold = Math.min(offlineGold, Math.floor(maxOfflineSec * goldPerSec));
+        const offlineGold = Math.min(Math.floor(elapsedSec * goldPerSec), Math.floor(maxOfflineSec * goldPerSec));
 
         const mergedRooms = DUNGEON_ROOMS_TEMPLATE.map(tpl => {
-          const saved = parsed.rooms?.find(r => r.id === tpl.id);
+          const savedRoom = parsed.rooms?.find(r => r.id === tpl.id);
           return {
             ...tpl,
-            level: saved?.level || 1
+            level: savedRoom?.level || 1
           };
         });
 
         return {
           ...defaultState,
           ...parsed,
+          gridState: parsed.gridState && parsed.gridState.length === 48 ? parsed.gridState : defaultState.gridState,
           rooms: mergedRooms,
-          unclaimedGold: (parsed.unclaimedGold || 0) + cappedOfflineGold,
+          unclaimedGold: (parsed.unclaimedGold || 0) + offlineGold,
           lastSaved: now
         };
       }
@@ -63,7 +65,7 @@ export function useGameState() {
     return defaultState;
   });
 
-  // Autosave to localStorage on changes
+  // Autosave to localStorage on state changes
   useEffect(() => {
     try {
       const toSave = {
@@ -76,12 +78,12 @@ export function useGameState() {
     }
   }, [gameState]);
 
-  // Passive gold tick every second
+  // Passive gold tick every second based on grid vaults
   useEffect(() => {
     const timer = setInterval(() => {
       setGameState(prev => {
-        const vault = prev.rooms.find(r => r.id === 'gold_vault');
-        const rate = (vault?.level || 1) * 2.5;
+        const vaultCount = prev.gridState.filter(c => c === 'vault').length;
+        const rate = Math.max(3.0, vaultCount * 4.0);
         return {
           ...prev,
           unclaimedGold: prev.unclaimedGold + rate
@@ -93,42 +95,56 @@ export function useGameState() {
   }, []);
 
   const heroClass = HERO_CLASSES[gameState.heroClassId] || HERO_CLASSES.warrior;
+  const activeMercenary = MERCENARIES.find(m => m.id === gameState.activeMercenaryId) || MERCENARIES[0];
 
-  // Calculate Total Hero Stats (Base + Equipment + Room Bonuses)
+  // Calculate Inotia Total Stats (Base + All 7 Paperdoll Slots + Forge bonus + Level)
   const totalStats = useMemo(() => {
     const base = heroClass.baseStats;
-    const forge = gameState.rooms.find(r => r.id === 'forge');
-    const trap = gameState.rooms.find(r => r.id === 'trap_chamber');
+    const forgeCount = gameState.gridState.filter(c => c === 'forge').length;
+    const forgeMultiplier = 1 + forgeCount * 0.15;
 
-    const forgeAtkBonus = 1 + ((forge?.level || 1) - 1) * 0.08;
-    const trapDefBonus = ((trap?.level || 1) - 1) * 6;
-
-    let atk = base.attack * forgeAtkBonus;
-    let def = base.defense + trapDefBonus;
+    let atk = base.attack * forgeMultiplier;
+    let def = base.defense;
     let maxHp = base.maxHp;
     let maxMp = base.maxMp;
     let speed = base.speed;
     let crit = base.critChance;
 
-    // Add equipped gear
-    if (gameState.equipment.weapon) {
-      atk += gameState.equipment.weapon.attack || 0;
-      crit += gameState.equipment.weapon.critBonus || 0;
-      speed += gameState.equipment.weapon.speedBonus || 0;
+    const eq = gameState.equipment;
+    if (eq.weapon) {
+      atk += eq.weapon.attack || 0;
+      crit += eq.weapon.critBonus || 0;
+      speed += eq.weapon.speedBonus || 0;
     }
-    if (gameState.equipment.armor) {
-      def += gameState.equipment.armor.defense || 0;
-      maxHp += gameState.equipment.armor.hpBonus || 0;
+    if (eq.shield) {
+      def += eq.shield.defense || 0;
+      maxHp += eq.shield.hpBonus || 0;
     }
-    if (gameState.equipment.ring) {
-      maxHp += gameState.equipment.ring.hpBonus || 0;
-      maxMp += gameState.equipment.ring.mpBonus || 0;
-      crit += gameState.equipment.ring.critBonus || 0;
-      speed += gameState.equipment.ring.speedBonus || 0;
+    if (eq.helmet) {
+      def += eq.helmet.defense || 0;
+      maxHp += eq.helmet.hpBonus || 0;
+      crit += eq.helmet.critBonus || 0;
+    }
+    if (eq.armor) {
+      def += eq.armor.defense || 0;
+      maxHp += eq.armor.hpBonus || 0;
+    }
+    if (eq.boots) {
+      def += eq.boots.defense || 0;
+      speed += eq.boots.speedBonus || 0;
+    }
+    if (eq.amulet) {
+      maxHp += eq.amulet.hpBonus || 0;
+      maxMp += eq.amulet.mpBonus || 0;
+      crit += eq.amulet.critBonus || 0;
+    }
+    if (eq.ring) {
+      maxHp += eq.ring.hpBonus || 0;
+      atk += eq.ring.attack || 0;
+      crit += eq.ring.critBonus || 0;
     }
 
-    // Add Level multipliers
-    const lvlMultiplier = 1 + (gameState.heroLevel - 1) * 0.12;
+    const lvlMultiplier = 1 + (gameState.heroLevel - 1) * 0.15;
     atk = Math.round(atk * lvlMultiplier);
     maxHp = Math.round(maxHp * lvlMultiplier);
     maxMp = Math.round(maxMp * lvlMultiplier);
@@ -139,9 +155,9 @@ export function useGameState() {
       maxHp,
       maxMp,
       speed,
-      critChance: Math.min(0.85, crit)
+      critChance: Math.min(0.90, crit)
     };
-  }, [heroClass, gameState.equipment, gameState.rooms, gameState.heroLevel]);
+  }, [heroClass, gameState.equipment, gameState.gridState, gameState.heroLevel]);
 
   // Actions
   const claimPassiveIncome = useCallback(() => {
@@ -149,6 +165,15 @@ export function useGameState() {
       ...prev,
       gold: prev.gold + Math.floor(prev.unclaimedGold),
       unclaimedGold: 0
+    }));
+  }, []);
+
+  const updateGrid = useCallback((newGrid, costGold, costGems) => {
+    setGameState(prev => ({
+      ...prev,
+      gold: Math.max(0, prev.gold - costGold),
+      gems: Math.max(0, prev.gems - costGems),
+      gridState: newGrid
     }));
   }, []);
 
@@ -197,7 +222,7 @@ export function useGameState() {
 
   const addLootItem = useCallback((item) => {
     setGameState(prev => {
-      if (prev.inventory.length >= 25) return prev; // Inventory full
+      if (prev.inventory.length >= 24) return prev;
       return {
         ...prev,
         inventory: [item, ...prev.inventory]
@@ -207,10 +232,10 @@ export function useGameState() {
 
   const addExpAndGold = useCallback((earnedGold, earnedGems, kills) => {
     setGameState(prev => {
-      let expToAdd = kills * 35;
+      let expToAdd = kills * 40;
       let newExp = prev.heroExp + expToAdd;
       let newLevel = prev.heroLevel;
-      const expNeeded = newLevel * 100;
+      const expNeeded = newLevel * 120;
 
       if (newExp >= expNeeded) {
         newLevel += 1;
@@ -228,10 +253,25 @@ export function useGameState() {
     });
   }, []);
 
+  const addSanctuaryRewards = useCallback((addGold, addGems) => {
+    setGameState(prev => ({
+      ...prev,
+      gold: prev.gold + addGold,
+      gems: prev.gems + addGems
+    }));
+  }, []);
+
   const selectClass = useCallback((classId) => {
     setGameState(prev => ({
       ...prev,
       heroClassId: classId
+    }));
+  }, []);
+
+  const selectMercenary = useCallback((mercId) => {
+    setGameState(prev => ({
+      ...prev,
+      activeMercenaryId: mercId
     }));
   }, []);
 
@@ -244,25 +284,35 @@ export function useGameState() {
     return true;
   }, [gameState.potionsCount]);
 
-  const addPotion = useCallback((count = 1) => {
+  const markPrologueSeen = useCallback(() => {
     setGameState(prev => ({
       ...prev,
-      potionsCount: prev.potionsCount + count
+      prologueSeen: true
     }));
+  }, []);
+
+  const resetGame = useCallback(() => {
+    localStorage.removeItem(SAVE_KEY);
+    window.location.reload();
   }, []);
 
   return {
     gameState,
     heroClass,
+    activeMercenary,
     totalStats,
     claimPassiveIncome,
+    updateGrid,
     upgradeRoom,
     equipItem,
     sellItem,
     addLootItem,
     addExpAndGold,
+    addSanctuaryRewards,
     selectClass,
+    selectMercenary,
     consumePotion,
-    addPotion
+    markPrologueSeen,
+    resetGame
   };
 }

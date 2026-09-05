@@ -1,5 +1,17 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { Sword, Wand2, Shield, Flame, Zap, FastForward, Heart, Sparkles } from 'lucide-react';
+import { 
+  Sword, 
+  Wand2, 
+  Shield, 
+  Flame, 
+  Zap, 
+  FastForward, 
+  Heart, 
+  Sun,
+  Snowflake,
+  Sparkles,
+  Compass
+} from 'lucide-react';
 
 export default function VirtualControls({
   heroClass,
@@ -9,15 +21,15 @@ export default function VirtualControls({
   onDash,
   onPotion,
   skillCooldowns = {},
-  potionsCount = 3
+  potionsCount = 3,
+  mercenary
 }) {
   const joystickBaseRef = useRef(null);
   const [joystickActive, setJoystickActive] = useState(false);
   const [knobPos, setKnobPos] = useState({ x: 0, y: 0 });
   const touchIdRef = useRef(null);
-  const maxRadius = 45; // Max joystick thumb travel
+  const maxRadius = 45;
 
-  // Reset Joystick
   const resetJoystick = useCallback(() => {
     setJoystickActive(false);
     setKnobPos({ x: 0, y: 0 });
@@ -25,7 +37,6 @@ export default function VirtualControls({
     onMove(0, 0);
   }, [onMove]);
 
-  // Handle Touch Start
   const handleTouchStart = (e) => {
     e.preventDefault();
     if (touchIdRef.current !== null) return;
@@ -36,7 +47,6 @@ export default function VirtualControls({
     updateJoystickPos(touch.clientX, touch.clientY);
   };
 
-  // Handle Touch Move
   const handleTouchMove = (e) => {
     e.preventDefault();
     for (let i = 0; i < e.changedTouches.length; i++) {
@@ -48,7 +58,6 @@ export default function VirtualControls({
     }
   };
 
-  // Update Joystick vector
   const updateJoystickPos = (clientX, clientY) => {
     if (!joystickBaseRef.current) return;
     const rect = joystickBaseRef.current.getBoundingClientRect();
@@ -71,7 +80,6 @@ export default function VirtualControls({
     }
   };
 
-  // Handle Touch End / Cancel
   const handleTouchEnd = (e) => {
     for (let i = 0; i < e.changedTouches.length; i++) {
       if (e.changedTouches[i].identifier === touchIdRef.current) {
@@ -81,7 +89,7 @@ export default function VirtualControls({
     }
   };
 
-  // Keyboard fallbacks for desktop / tablet testing
+  // Keyboard controls
   useEffect(() => {
     const keys = { w: false, a: false, s: false, d: false, ArrowUp: false, ArrowLeft: false, ArrowDown: false, ArrowRight: false };
 
@@ -110,10 +118,12 @@ export default function VirtualControls({
         onSkill(0);
       } else if (e.key === '2' || e.key.toLowerCase() === 'k') {
         onSkill(1);
+      } else if (e.key === '3' || e.key.toLowerCase() === 'u') {
+        onSkill(2);
       } else if (e.code === 'ShiftLeft' || e.key.toLowerCase() === 'l') {
         onDash();
       } else if (e.key.toLowerCase() === 'h' || e.key.toLowerCase() === 'q') {
-        onPotion();
+        onPotion('health');
       }
     };
 
@@ -134,8 +144,11 @@ export default function VirtualControls({
 
   const skill1 = heroClass.skills[0];
   const skill2 = heroClass.skills[1];
+  const skill3 = heroClass.skills[2];
+
   const cd1 = Math.ceil(skillCooldowns[0] || 0);
   const cd2 = Math.ceil(skillCooldowns[1] || 0);
+  const cd3 = Math.ceil(skillCooldowns[2] || 0);
   const cdDash = Math.ceil(skillCooldowns.dash || 0);
 
   return (
@@ -150,41 +163,41 @@ export default function VirtualControls({
           onTouchCancel={resetJoystick}
           className={`w-28 h-28 rounded-full border-2 transition-colors flex items-center justify-center relative ${
             joystickActive
-              ? 'bg-black/50 border-gold-500/80 shadow-lg shadow-gold-500/20'
-              : 'bg-black/35 border-slate-600/40'
+              ? 'bg-black/60 border-gold-500 shadow-xl shadow-gold-500/20'
+              : 'bg-black/40 border-slate-600/50'
           }`}
           style={{ touchAction: 'none' }}
         >
-          {/* Inner Crosshair / Ring */}
+          {/* Inner 8-direction cross */}
           <div className="w-12 h-12 rounded-full border border-white/10" />
 
           {/* Draggable Knob */}
           <div
             className={`w-12 h-12 rounded-full absolute transition-transform duration-75 flex items-center justify-center ${
               joystickActive
-                ? 'bg-gradient-to-tr from-gold-600 to-amber-400 text-black shadow-md'
+                ? 'bg-gradient-to-tr from-gold-600 to-amber-400 text-black shadow-lg scale-105'
                 : 'bg-slate-400/50 text-white'
             }`}
             style={{
               transform: `translate(${knobPos.x}px, ${knobPos.y}px)`
             }}
           >
-            <div className="w-3 h-3 rounded-full bg-white/60" />
+            <div className="w-3.5 h-3.5 rounded-full bg-white/70" />
           </div>
         </div>
-        <span className="block text-center text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-1 opacity-70">
-          Gerak / Joystick
+        <span className="block text-center text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-1 opacity-70">
+          JOYSTICK 360°
         </span>
       </div>
 
-      {/* 2. Right Side: Action Cluster */}
-      <div className="pointer-events-auto relative flex flex-col items-end gap-3 pr-2 pb-2">
-        {/* Row 1: Potions & Dash */}
-        <div className="flex items-center gap-3">
+      {/* 2. Right Side: Inotia Circular Action Button Cluster */}
+      <div className="pointer-events-auto relative flex flex-col items-end gap-2.5 pr-2 pb-1">
+        {/* Top Mini Controls: Potion & Dash */}
+        <div className="flex items-center gap-2.5">
           {/* Quick Potion */}
           <button
-            onClick={onPotion}
-            className="w-11 h-11 rounded-full bg-blood-600/80 border border-blood-400/60 active:scale-90 transition-transform flex flex-col items-center justify-center shadow-lg relative"
+            onClick={() => onPotion('health')}
+            className="w-11 h-11 rounded-2xl bg-blood-600/90 border border-blood-400/70 active:scale-90 transition-transform flex flex-col items-center justify-center shadow-lg relative"
           >
             <Heart size={16} className="text-white fill-white" />
             <span className="text-[9px] font-black text-white leading-none mt-0.5">
@@ -196,40 +209,40 @@ export default function VirtualControls({
           <button
             onClick={onDash}
             disabled={cdDash > 0}
-            className={`w-12 h-12 rounded-full border active:scale-90 transition-transform flex flex-col items-center justify-center shadow-lg relative ${
+            className={`w-11 h-11 rounded-2xl border active:scale-90 transition-transform flex flex-col items-center justify-center shadow-lg relative ${
               cdDash > 0
                 ? 'bg-slate-800/80 border-slate-700 text-slate-500'
                 : 'bg-slate-700/80 border-slate-400 text-white'
             }`}
           >
-            <FastForward size={18} />
+            <FastForward size={17} />
             <span className="text-[8px] font-bold uppercase tracking-wider">Dash</span>
             {cdDash > 0 && (
-              <div className="absolute inset-0 bg-black/60 rounded-full flex items-center justify-center font-black text-xs text-amber-400">
+              <div className="absolute inset-0 bg-black/70 rounded-2xl flex items-center justify-center font-black text-xs text-amber-400">
                 {cdDash}s
               </div>
             )}
           </button>
         </div>
 
-        {/* Row 2: Skill 1, Skill 2, Big Attack */}
-        <div className="flex items-end gap-3">
+        {/* Skill Array + Big Main Attack */}
+        <div className="flex items-end gap-2.5">
           {/* Skill 1 */}
           <button
             onClick={() => onSkill(0)}
             disabled={cd1 > 0}
-            className={`w-13 h-13 rounded-2xl border active:scale-90 transition-transform flex flex-col items-center justify-center shadow-lg relative p-2 ${
+            className={`w-12 h-12 rounded-2xl border active:scale-90 transition-transform flex flex-col items-center justify-center shadow-lg relative p-1 ${
               cd1 > 0
                 ? 'bg-slate-900/80 border-slate-700 text-slate-600'
-                : 'bg-gradient-to-br from-indigo-600/90 to-purple-800/90 border-indigo-400 text-white'
+                : 'bg-gradient-to-br from-indigo-600 to-purple-800 border-indigo-400 text-white'
             }`}
           >
-            <Zap size={18} />
-            <span className="text-[8px] font-bold mt-0.5 truncate max-w-[42px] leading-tight">
+            <Zap size={17} />
+            <span className="text-[8px] font-black mt-0.5 truncate max-w-[42px] leading-tight">
               {skill1?.name.split(' ')[0]}
             </span>
             {cd1 > 0 && (
-              <div className="absolute inset-0 bg-black/70 rounded-2xl flex items-center justify-center font-black text-sm text-indigo-300">
+              <div className="absolute inset-0 bg-black/75 rounded-2xl flex items-center justify-center font-black text-xs text-indigo-300">
                 {cd1}s
               </div>
             )}
@@ -239,29 +252,52 @@ export default function VirtualControls({
           <button
             onClick={() => onSkill(1)}
             disabled={cd2 > 0}
-            className={`w-13 h-13 rounded-2xl border active:scale-90 transition-transform flex flex-col items-center justify-center shadow-lg relative p-2 ${
+            className={`w-12 h-12 rounded-2xl border active:scale-90 transition-transform flex flex-col items-center justify-center shadow-lg relative p-1 ${
               cd2 > 0
                 ? 'bg-slate-900/80 border-slate-700 text-slate-600'
-                : 'bg-gradient-to-br from-amber-600/90 to-red-700/90 border-amber-400 text-white'
+                : 'bg-gradient-to-br from-amber-600 to-red-700 border-amber-400 text-white'
             }`}
           >
-            <Flame size={18} />
-            <span className="text-[8px] font-bold mt-0.5 truncate max-w-[42px] leading-tight">
+            <Flame size={17} />
+            <span className="text-[8px] font-black mt-0.5 truncate max-w-[42px] leading-tight">
               {skill2?.name.split(' ')[0]}
             </span>
             {cd2 > 0 && (
-              <div className="absolute inset-0 bg-black/70 rounded-2xl flex items-center justify-center font-black text-sm text-amber-300">
+              <div className="absolute inset-0 bg-black/75 rounded-2xl flex items-center justify-center font-black text-xs text-amber-300">
                 {cd2}s
               </div>
             )}
           </button>
 
-          {/* Big Main Attack Button */}
+          {/* Skill 3: ULTIMATE */}
+          {skill3 && (
+            <button
+              onClick={() => onSkill(2)}
+              disabled={cd3 > 0}
+              className={`w-12 h-12 rounded-2xl border active:scale-90 transition-transform flex flex-col items-center justify-center shadow-lg relative p-1 ${
+                cd3 > 0
+                  ? 'bg-slate-900/80 border-slate-700 text-slate-600'
+                  : 'bg-gradient-to-br from-purple-600 to-pink-700 border-pink-400 text-white animate-pulse'
+              }`}
+            >
+              <Sparkles size={17} />
+              <span className="text-[8px] font-black mt-0.5 truncate max-w-[42px] leading-tight">
+                ULT
+              </span>
+              {cd3 > 0 && (
+                <div className="absolute inset-0 bg-black/75 rounded-2xl flex items-center justify-center font-black text-xs text-pink-300">
+                  {cd3}s
+                </div>
+              )}
+            </button>
+          )}
+
+          {/* Big Attack Button */}
           <button
             onClick={onAttack}
-            className="w-18 h-18 rounded-3xl bg-gradient-to-tr from-blood-600 to-amber-500 border-2 border-gold-300 shadow-xl shadow-blood-600/30 active:scale-90 transition-transform flex flex-col items-center justify-center text-white"
+            className="w-18 h-18 rounded-3xl bg-gradient-to-tr from-blood-600 via-amber-600 to-gold-500 border-2 border-gold-300 shadow-2xl shadow-blood-600/40 active:scale-90 transition-transform flex flex-col items-center justify-center text-white font-fantasy"
           >
-            {heroClass.attackType === 'ranged' ? <Wand2 size={26} /> : <Sword size={26} />}
+            {heroClass.attackType === 'ranged' ? <Wand2 size={28} /> : <Sword size={28} />}
             <span className="text-[10px] font-black uppercase tracking-wider mt-0.5">
               SERANG
             </span>

@@ -1,16 +1,17 @@
-import React, { useRef, useEffect, useState, useImperativeHandle, forwardRef } from 'react';
+import React, { useRef, useEffect, useImperativeHandle, forwardRef } from 'react';
 import { GameEngine } from './gameEngine';
 import { generateDungeon } from './dungeonGenerator';
-import { sound } from './soundEngine';
 
 const GameCanvas = forwardRef(function GameCanvas({
   floorConfig,
   heroClass,
   totalStats,
+  mercenaryDef,
   onStatsUpdate,
   onDungeonClear,
   onGameOver,
-  onLootDrop
+  onLootDrop,
+  onBossEncounter
 }, ref) {
   const canvasRef = useRef(null);
   const engineRef = useRef(null);
@@ -19,25 +20,24 @@ const GameCanvas = forwardRef(function GameCanvas({
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    // Set canvas dimensions to window size
     const updateSize = () => {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
     };
     updateSize();
 
-    // Generate dungeon floor
     const dungeonData = generateDungeon({ floorConfig });
 
-    // Initialize Game Engine
     const engine = new GameEngine(canvas, {
       dungeonData,
       heroClass,
       playerStats: totalStats,
+      mercenaryDef,
       onStatsUpdate,
       onDungeonClear,
       onGameOver,
-      onLootDrop
+      onLootDrop,
+      onBossEncounter
     });
 
     engineRef.current = engine;
@@ -52,9 +52,8 @@ const GameCanvas = forwardRef(function GameCanvas({
       window.removeEventListener('resize', handleResize);
       engine.stop();
     };
-  }, [floorConfig, heroClass, totalStats]);
+  }, [floorConfig, heroClass, totalStats, mercenaryDef]);
 
-  // Expose engine controls to VirtualControls
   useImperativeHandle(ref, () => ({
     setMove: (vx, vy) => {
       engineRef.current?.setInput(vx, vy);

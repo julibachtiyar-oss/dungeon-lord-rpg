@@ -3,7 +3,17 @@ import { isInsideWalkableDungeon } from './dungeonGenerator';
 import { LOOT_TABLE } from '../constants/items';
 
 export class GameEngine {
-  constructor(canvas, { dungeonData, heroClass, playerStats, onStatsUpdate, onDungeonClear, onGameOver, onLootDrop }) {
+  constructor(canvas, { 
+    dungeonData, 
+    heroClass, 
+    playerStats, 
+    mercenaryDef, 
+    onStatsUpdate, 
+    onDungeonClear, 
+    onGameOver, 
+    onLootDrop,
+    onBossEncounter
+  }) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
     this.dungeon = dungeonData;
@@ -12,14 +22,21 @@ export class GameEngine {
     this.onDungeonClear = onDungeonClear;
     this.onGameOver = onGameOver;
     this.onLootDrop = onLootDrop;
+    this.onBossEncounter = onBossEncounter;
 
     // Running state
     this.isRunning = false;
     this.lastTime = performance.now();
     this.animId = null;
 
-    // Camera
-    this.camera = { x: 0, y: 0, zoom: 1 };
+    // Camera with Screen Shake
+    this.camera = { 
+      x: 0, 
+      y: 0, 
+      zoom: 1, 
+      shakeTimer: 0, 
+      shakeMag: 0 
+    };
 
     // Player State
     this.player = {
@@ -38,7 +55,6 @@ export class GameEngine {
       isAttacking: false,
       attackTimer: 0,
       attackDuration: 0.22,
-      slashArc: 0,
       dashing: false,
       dashTimer: 0,
       dashDuration: 0.18,
@@ -46,10 +62,25 @@ export class GameEngine {
       dashVy: 0,
       invulnerableTimer: 0,
       ironBastionTimer: 0,
+      frenzyTimer: 0,
       kills: 0,
       goldEarned: 0,
       gemsEarned: 0
     };
+
+    // Mercenary Party Companion
+    this.mercenary = mercenaryDef ? {
+      ...mercenaryDef,
+      x: this.player.x - 35,
+      y: this.player.y - 20,
+      hp: mercenaryDef.maxHp,
+      maxHp: mercenaryDef.maxHp,
+      attack: mercenaryDef.attack,
+      defense: mercenaryDef.defense,
+      attackCooldownTimer: 0,
+      skillCooldownTimer: 0,
+      facingAngle: 0
+    } : null;
 
     // Entities
     this.monsters = [...this.dungeon.monsters];
@@ -58,21 +89,22 @@ export class GameEngine {
     this.particles = [];
     this.floatingTexts = [];
     this.boss = this.monsters.find(m => m.isBoss) || null;
+    this.bossEncounterTriggered = false;
 
-    // Input state from virtual controls
+    // Input state from virtual controls (3 skills + dash)
     this.input = {
       moveX: 0,
       moveY: 0,
-      skillCooldowns: { 0: 0, 1: 0, dash: 0 }
+      skillCooldowns: { 0: 0, 1: 0, 2: 0, dash: 0 }
     };
 
-    // Torch flicker
     this.torchTimer = 0;
   }
 
   start() {
     this.isRunning = true;
     this.lastTime = performance.now();
+    sound.playBGM('dungeon');
     this.loop(this.lastTime);
   }
 
@@ -81,6 +113,12 @@ export class GameEngine {
     if (this.animId) {
       cancelAnimationFrame(this.animId);
     }
+    sound.stopBGM();
+  }
+
+  triggerScreenShake(duration = 0.25, magnitude = 8) {
+    this.camera.shakeTimer = duration;
+    this.camera.shakeMag = magnitude;
   }
 
   setInput(moveX, moveY) {
@@ -96,12 +134,11 @@ export class GameEngine {
     if (this.player.isAttacking || this.player.hp <= 0) return;
 
     this.player.isAttacking = true;
-    this.player.attackTimer = this.player.attackDuration;
+    this.player.attackTimer = this.player.frenzyTimer > 0 ? 0.12 : this.player.attackDuration;
 
     if (this.heroClass.attackType === 'ranged') {
-      sound.playAttackMagic();
-      // Spawn Magic Bolt Projectile
-      const spd = this.heroClass.projectileSpeed || 7.5;
+      sound.playAttackMelee();
+      const spd = this.heroClass.projectileSpeed || 8.2;
       this.projectiles.push({
         x: this.player.x + Math.cos(this.player.facingAngle) * 22,
         y: this.player.y + Math.sin(this.player.facingAngle) * 22,
@@ -109,24 +146,23 @@ export class GameEngine {
         vy: Math.sin(this.player.facingAngle) * spd,
         radius: 7,
         damage: this.player.attack,
-        isCrit: Math.random() < this.player.critChance,
+        isCrit: Math.random() < (this.player.frenzyTimer > 0 ? 0.8 : this.player.critChance),
         fromPlayer: true,
         color: this.heroClass.color,
         life: 1.2
       });
     } else {
       sound.playAttackMelee();
-      // Melee Swing Hit Check
       this.performMeleeHit(
-        this.heroClass.attackRange || 55,
-        this.heroClass.attackArc || Math.PI * 0.7,
+        this.heroClass.attackRange || 65,
+        this.heroClass.attackArc || Math.PI * 0.75,
         this.player.attack,
         false
       );
     }
   }
 
-  // Trigger Class Skill 1
+  // Trigger Class Skill (0: Skill 1, 1: Skill 2, 2: Skill 3 / Ultimate)
   triggerSkill(skillIndex) {
     if (this.player.hp <= 0) return;
     const skill = this.heroClass.skills[skillIndex];
@@ -138,29 +174,30 @@ export class GameEngine {
       return;
     }
 
-    // Deduct MP
+    // Deduct MP & set cooldown
     this.player.mp = Math.max(0, this.player.mp - skill.mpCost);
     this.input.skillCooldowns[skillIndex] = skill.cooldown;
 
     if (skill.type === 'aoe_spin') {
-      sound.playSkillWhirlwind();
+      sound.playSkillExplosion();
+      this.triggerScreenShake(0.3, 10);
       this.performMeleeHit(skill.radius, Math.PI * 2, this.player.attack * skill.damageMultiplier, true);
-      this.createShockwave(this.player.x, this.player.y, skill.radius, '#ef4444');
+      this.createShockwave(this.player.x, this.player.y, skill.radius, this.heroClass.color);
     } else if (skill.type === 'buff_defense') {
-      sound.playPotionUse();
+      sound.playHeal();
       this.player.ironBastionTimer = skill.duration;
-      this.player.hp = Math.min(this.player.maxHp, this.player.hp + 60);
-      this.addFloatingText(this.player.x, this.player.y - 30, 'IRON BASTION! (+60 HP)', '#f97316');
-      this.createAuraParticles(this.player.x, this.player.y, '#f97316', 30);
+      this.player.hp = Math.min(this.player.maxHp, this.player.hp + 80);
+      this.addFloatingText(this.player.x, this.player.y - 30, 'BASTION OF TORMENT (+80 HP)', '#f97316');
+      this.createAuraParticles(this.player.x, this.player.y, '#f97316', 35);
     } else if (skill.type === 'projectile_explode') {
-      sound.playSkillFireball();
-      const spd = 6.5;
+      sound.playSkillExplosion();
+      const spd = 7.0;
       this.projectiles.push({
         x: this.player.x + Math.cos(this.player.facingAngle) * 25,
         y: this.player.y + Math.sin(this.player.facingAngle) * 25,
         vx: Math.cos(this.player.facingAngle) * spd,
         vy: Math.sin(this.player.facingAngle) * spd,
-        radius: 12,
+        radius: 14,
         damage: this.player.attack * skill.damageMultiplier,
         isCrit: true,
         fromPlayer: true,
@@ -170,19 +207,19 @@ export class GameEngine {
         life: 1.5
       });
     } else if (skill.type === 'aoe_freeze') {
-      sound.playSkillFrostNova();
+      sound.playSkillCast();
       this.createShockwave(this.player.x, this.player.y, skill.radius, '#38bdf8');
       for (const m of this.monsters) {
         const dist = Math.hypot(m.x - this.player.x, m.y - this.player.y);
         if (dist <= skill.radius) {
           this.damageMonster(m, this.player.attack * skill.damageMultiplier, true);
-          m.frozenTimer = 3.5;
+          m.frozenTimer = 4.0;
           this.addFloatingText(m.x, m.y - 20, 'FROZEN!', '#38bdf8');
         }
       }
     } else if (skill.type === 'dash_strike') {
-      sound.playSkillDash();
-      const dashDist = skill.dashDistance || 120;
+      sound.playCriticalHit();
+      const dashDist = skill.dashDistance || 140;
       const targetX = this.player.x + Math.cos(this.player.facingAngle) * dashDist;
       const targetY = this.player.y + Math.sin(this.player.facingAngle) * dashDist;
 
@@ -190,7 +227,8 @@ export class GameEngine {
         this.player.x = targetX;
         this.player.y = targetY;
       }
-      this.performMeleeHit(75, Math.PI * 2, this.player.attack * skill.damageMultiplier, true);
+      this.triggerScreenShake(0.2, 7);
+      this.performMeleeHit(85, Math.PI * 2, this.player.attack * skill.damageMultiplier, true);
       this.createAuraParticles(this.player.x, this.player.y, '#eab308', 25);
     } else if (skill.type === 'multi_projectile') {
       sound.playAttackMelee();
@@ -200,16 +238,34 @@ export class GameEngine {
         this.projectiles.push({
           x: this.player.x,
           y: this.player.y,
-          vx: Math.cos(angle) * 7,
-          vy: Math.sin(angle) * 7,
-          radius: 5,
+          vx: Math.cos(angle) * 7.5,
+          vy: Math.sin(angle) * 7.5,
+          radius: 6,
           damage: this.player.attack * skill.damageMultiplier,
           isCrit: false,
           fromPlayer: true,
           color: '#22c55e',
-          life: 0.9
+          life: 0.95
         });
       }
+    } else if (skill.type === 'heal_party') {
+      sound.playHeal();
+      const healAmt = skill.healAmount || 120;
+      this.player.hp = Math.min(this.player.maxHp, this.player.hp + healAmt);
+      this.addFloatingText(this.player.x, this.player.y - 30, `+${healAmt} HP PARTY!`, '#22c55e', 16);
+      this.createShockwave(this.player.x, this.player.y, 150, '#38bdf8');
+
+      if (this.mercenary) {
+        this.mercenary.hp = Math.min(this.mercenary.maxHp, this.mercenary.hp + healAmt);
+        this.addFloatingText(this.mercenary.x, this.mercenary.y - 25, `+${healAmt} HP`, '#22c55e');
+      }
+
+      this.performMeleeHit(150, Math.PI * 2, this.player.attack * (skill.damageMultiplier || 2.2), true);
+    } else if (skill.type === 'buff_frenzy') {
+      sound.playLevelUp();
+      this.player.frenzyTimer = skill.duration || 6.0;
+      this.addFloatingText(this.player.x, this.player.y - 35, 'PHANTOM FRENZY! 250% CRIT', '#facc15', 16);
+      this.createAuraParticles(this.player.x, this.player.y, '#facc15', 40);
     }
   }
 
@@ -217,11 +273,11 @@ export class GameEngine {
   triggerDash() {
     if (this.player.dashing || this.input.skillCooldowns.dash > 0 || this.player.hp <= 0) return;
 
-    sound.playSkillDash();
+    sound.playSkillCast();
     this.player.dashing = true;
     this.player.dashTimer = this.player.dashDuration;
-    this.player.invulnerableTimer = this.player.dashDuration + 0.1;
-    this.input.skillCooldowns.dash = 2.5;
+    this.player.invulnerableTimer = this.player.dashDuration + 0.12;
+    this.input.skillCooldowns.dash = 2.4;
 
     let moveX = this.input.moveX;
     let moveY = this.input.moveY;
@@ -230,28 +286,27 @@ export class GameEngine {
       moveY = Math.sin(this.player.facingAngle);
     }
 
-    const dashSpeed = this.player.baseSpeed * 4.2;
+    const dashSpeed = this.player.baseSpeed * 4.5;
     this.player.dashVx = moveX * dashSpeed;
     this.player.dashVy = moveY * dashSpeed;
 
-    this.createAuraParticles(this.player.x, this.player.y, '#ffffff', 15);
+    this.createAuraParticles(this.player.x, this.player.y, '#ffffff', 18);
   }
 
-  // Use Healing Potion
   usePotion(type = 'health') {
     if (this.player.hp <= 0) return;
-    sound.playPotionUse();
+    sound.playHeal();
 
     if (type === 'health') {
-      const heal = 80;
+      const heal = 120;
       this.player.hp = Math.min(this.player.maxHp, this.player.hp + heal);
-      this.addFloatingText(this.player.x, this.player.y - 25, `+${heal} HP`, '#22c55e');
-      this.createAuraParticles(this.player.x, this.player.y, '#22c55e', 20);
+      this.addFloatingText(this.player.x, this.player.y - 25, `+${heal} HP`, '#22c55e', 16);
+      this.createAuraParticles(this.player.x, this.player.y, '#22c55e', 22);
     } else {
-      const mana = 55;
+      const mana = 90;
       this.player.mp = Math.min(this.player.maxMp, this.player.mp + mana);
-      this.addFloatingText(this.player.x, this.player.y - 25, `+${mana} MP`, '#38bdf8');
-      this.createAuraParticles(this.player.x, this.player.y, '#38bdf8', 20);
+      this.addFloatingText(this.player.x, this.player.y - 25, `+${mana} MP`, '#38bdf8', 16);
+      this.createAuraParticles(this.player.x, this.player.y, '#38bdf8', 22);
     }
   }
 
@@ -267,13 +322,17 @@ export class GameEngine {
         while (diff > Math.PI) diff = Math.abs(diff - Math.PI * 2);
 
         if (diff <= arc / 2 || arc >= Math.PI * 1.9) {
-          const isCrit = guaranteeCrit || Math.random() < this.player.critChance;
-          const dmg = isCrit ? rawDmg * 1.8 : rawDmg;
+          const isCrit = guaranteeCrit || (Math.random() < (this.player.frenzyTimer > 0 ? 0.85 : this.player.critChance));
+          const dmg = isCrit ? rawDmg * 2.0 : rawDmg;
           this.damageMonster(m, dmg, isCrit);
 
+          if (isCrit) {
+            this.triggerScreenShake(0.2, 8);
+          }
+
           // Knockback
-          m.vx += Math.cos(angleToTarget) * 4;
-          m.vy += Math.sin(angleToTarget) * 4;
+          m.vx += Math.cos(angleToTarget) * 4.5;
+          m.vy += Math.sin(angleToTarget) * 4.5;
         }
       }
     }
@@ -284,19 +343,22 @@ export class GameEngine {
     monster.hp -= netDamage;
     monster.flashTimer = 0.15;
 
-    sound.playEnemyHit();
+    if (isCrit) {
+      sound.playCriticalHit();
+    } else {
+      sound.playAttackMelee();
+    }
 
-    // Damage number popup
+    // Damage popup
     this.addFloatingText(
       monster.x + (Math.random() * 20 - 10),
       monster.y - monster.radius - 8,
       isCrit ? `CRIT! ${netDamage}` : `${netDamage}`,
       isCrit ? '#facc15' : '#ffffff',
-      isCrit ? 18 : 13
+      isCrit ? 19 : 13
     );
 
-    // Blood / sparks
-    this.createHitSparks(monster.x, monster.y, monster.color, 8);
+    this.createHitSparks(monster.x, monster.y, monster.color, 10);
 
     if (monster.hp <= 0) {
       this.killMonster(monster);
@@ -312,23 +374,22 @@ export class GameEngine {
     this.player.kills++;
     sound.playCoinCollect();
 
-    // Rewards
     const gold = Array.isArray(monster.goldReward)
       ? Math.floor(monster.goldReward[0] + Math.random() * (monster.goldReward[1] - monster.goldReward[0]))
-      : (monster.goldReward || 15);
+      : (monster.goldReward || 20);
     this.player.goldEarned += gold;
     this.addFloatingText(monster.x, monster.y - 15, `+${gold} Gold`, '#facc15', 14);
 
     if (monster.gemReward) {
       const gems = Array.isArray(monster.gemReward)
         ? Math.floor(monster.gemReward[0] + Math.random() * (monster.gemReward[1] - monster.gemReward[0]))
-        : 5;
+        : 6;
       this.player.gemsEarned += gems;
       this.addFloatingText(monster.x, monster.y - 32, `+${gems} Gems!`, '#a855f7', 15);
     }
 
-    // Roll Loot Drop (Chance 30% for normal, 100% for boss)
-    const dropChance = monster.isBoss ? 1.0 : 0.28;
+    // Loot Drop Chance
+    const dropChance = monster.isBoss ? 1.0 : 0.35;
     if (Math.random() < dropChance && LOOT_TABLE.length > 0) {
       const item = LOOT_TABLE[Math.floor(Math.random() * LOOT_TABLE.length)];
       if (this.onLootDrop) {
@@ -337,11 +398,10 @@ export class GameEngine {
       this.addFloatingText(monster.x, monster.y - 45, `LOOT: ${item.name}!`, item.rarity === 'legendary' ? '#facc15' : '#38bdf8', 15);
     }
 
-    this.createDeathExplosion(monster.x, monster.y, monster.color, monster.radius * 1.5);
+    this.createDeathExplosion(monster.x, monster.y, monster.color, monster.radius * 1.6);
 
-    // Check if Boss died -> Floor Clear!
     if (monster.isBoss) {
-      sound.playVictory();
+      sound.playLevelUp();
       if (this.onDungeonClear) {
         this.onDungeonClear({
           goldEarned: this.player.goldEarned,
@@ -357,22 +417,22 @@ export class GameEngine {
 
     let netDmg = Math.max(1, Math.round(dmg - this.player.defense * 0.45));
     if (this.player.ironBastionTimer > 0) {
-      netDmg = Math.max(1, Math.round(netDmg * 0.3)); // 70% damage reduction
+      netDmg = Math.max(1, Math.round(netDmg * 0.3));
     }
 
     this.player.hp -= netDmg;
-    this.player.invulnerableTimer = 0.4;
-    sound.playPlayerHit();
+    this.player.invulnerableTimer = 0.38;
+    sound.playAttackMelee();
+    this.triggerScreenShake(0.18, 6);
 
     this.addFloatingText(this.player.x, this.player.y - 30, `-${netDmg}`, '#ef4444', 16);
-    this.createHitSparks(this.player.x, this.player.y, '#ef4444', 10);
+    this.createHitSparks(this.player.x, this.player.y, '#ef4444', 12);
 
     if (this.player.hp <= 0) {
       this.player.hp = 0;
-      sound.playGameOver?.();
       if (this.onGameOver) {
         this.onGameOver({
-          goldEarned: Math.floor(this.player.goldEarned * 0.6), // keep 60% gold on defeat
+          goldEarned: Math.floor(this.player.goldEarned * 0.6),
           kills: this.player.kills
         });
       }
@@ -401,7 +461,7 @@ export class GameEngine {
         y,
         vx: Math.cos(angle) * speed,
         vy: Math.sin(angle) * speed,
-        radius: 2 + Math.random() * 2,
+        radius: 2.5 + Math.random() * 2,
         color,
         alpha: 1,
         life: 0.35 + Math.random() * 0.2
@@ -473,6 +533,7 @@ export class GameEngine {
     // Cooldown timers
     if (this.input.skillCooldowns[0] > 0) this.input.skillCooldowns[0] -= dt;
     if (this.input.skillCooldowns[1] > 0) this.input.skillCooldowns[1] -= dt;
+    if (this.input.skillCooldowns[2] > 0) this.input.skillCooldowns[2] -= dt;
     if (this.input.skillCooldowns.dash > 0) this.input.skillCooldowns.dash -= dt;
 
     if (this.player.attackTimer > 0) this.player.attackTimer -= dt;
@@ -483,12 +544,17 @@ export class GameEngine {
 
     if (this.player.invulnerableTimer > 0) this.player.invulnerableTimer -= dt;
     if (this.player.ironBastionTimer > 0) this.player.ironBastionTimer -= dt;
+    if (this.player.frenzyTimer > 0) this.player.frenzyTimer -= dt;
+
+    if (this.camera.shakeTimer > 0) {
+      this.camera.shakeTimer -= dt;
+    }
 
     this.torchTimer += dt * 4;
 
     // Passive MP Regen
     if (this.player.mp < this.player.maxMp) {
-      this.player.mp = Math.min(this.player.maxMp, this.player.mp + 4.5 * dt);
+      this.player.mp = Math.min(this.player.maxMp, this.player.mp + 5.0 * dt);
     }
 
     // Player Movement
@@ -500,22 +566,80 @@ export class GameEngine {
         vx = this.player.dashVx;
         vy = this.player.dashVy;
       } else {
-        const speed = this.player.baseSpeed * 60 * dt;
+        const speed = this.player.baseSpeed * (this.player.frenzyTimer > 0 ? 1.3 : 1.0) * 60 * dt;
         vx = this.input.moveX * speed;
         vy = this.input.moveY * speed;
       }
 
-      // Try moving along X
       if (isInsideWalkableDungeon(this.player.x + vx, this.player.y, this.player.radius, this.dungeon)) {
         this.player.x += vx;
       }
-      // Try moving along Y
       if (isInsideWalkableDungeon(this.player.x, this.player.y + vy, this.player.radius, this.dungeon)) {
         this.player.y += vy;
       }
     }
 
-    // Chest Opening Check
+    // Update Mercenary Party Companion AI
+    if (this.mercenary && this.mercenary.hp > 0 && this.player.hp > 0) {
+      const merc = this.mercenary;
+      const dxToPlayer = this.player.x - merc.x;
+      const dyToPlayer = this.player.y - merc.y;
+      const distToPlayer = Math.hypot(dxToPlayer, dyToPlayer);
+
+      // Find closest enemy within 220px
+      let closestEnemy = null;
+      let closestDist = 220;
+
+      for (const m of this.monsters) {
+        const d = Math.hypot(m.x - merc.x, m.y - merc.y);
+        if (d < closestDist) {
+          closestDist = d;
+          closestEnemy = m;
+        }
+      }
+
+      if (closestEnemy && distToPlayer < 280) {
+        // Target enemy
+        const angle = Math.atan2(closestEnemy.y - merc.y, closestEnemy.x - merc.x);
+        merc.facingAngle = angle;
+
+        if (closestDist > (merc.attackRange || 45)) {
+          merc.x += Math.cos(angle) * merc.speed * 60 * dt;
+          merc.y += Math.sin(angle) * merc.speed * 60 * dt;
+        } else {
+          // Attack cooldown check
+          merc.attackCooldownTimer -= dt;
+          if (merc.attackCooldownTimer <= 0) {
+            merc.attackCooldownTimer = merc.attackCooldown || 1.2;
+            sound.playAttackMelee();
+            this.damageMonster(closestEnemy, merc.attack, false);
+            this.addFloatingText(closestEnemy.x, closestEnemy.y - 20, `${merc.name.split(' ')[0]}: -${merc.attack}`, merc.color);
+          }
+        }
+      } else {
+        // Follow player (maintain distance ~45px)
+        if (distToPlayer > 50) {
+          const angle = Math.atan2(dyToPlayer, dxToPlayer);
+          merc.facingAngle = angle;
+          merc.x += Math.cos(angle) * (this.player.baseSpeed * 0.95) * 60 * dt;
+          merc.y += Math.sin(angle) * (this.player.baseSpeed * 0.95) * 60 * dt;
+        }
+      }
+    }
+
+    // Check Boss encounter proximity & BGM shift
+    if (this.boss && !this.bossEncounterTriggered) {
+      const dToBoss = Math.hypot(this.boss.x - this.player.x, this.boss.y - this.player.y);
+      if (dToBoss < 320) {
+        this.bossEncounterTriggered = true;
+        sound.playBGM('boss');
+        if (this.onBossEncounter) {
+          this.onBossEncounter(this.boss);
+        }
+      }
+    }
+
+    // Update Chests
     for (const chest of this.chests) {
       if (!chest.opened) {
         const dist = Math.hypot(chest.x - this.player.x, chest.y - this.player.y);
@@ -536,7 +660,6 @@ export class GameEngine {
         continue;
       }
 
-      // Friction
       m.vx *= 0.85;
       m.vy *= 0.85;
 
@@ -544,12 +667,10 @@ export class GameEngine {
       const dy = this.player.y - m.y;
       const distToPlayer = Math.hypot(dx, dy);
 
-      // Aggro Range check (within 350px)
       if (distToPlayer < 380 && this.player.hp > 0) {
         const angle = Math.atan2(dy, dx);
 
         if (m.behavior === 'ranged_kite') {
-          // Keep distance ~130px
           if (distToPlayer < 110) {
             m.vx -= Math.cos(angle) * m.speed * 1.5;
             m.vy -= Math.sin(angle) * m.speed * 1.5;
@@ -558,7 +679,6 @@ export class GameEngine {
             m.vy += Math.sin(angle) * m.speed;
           }
 
-          // Ranged shoot
           m.cooldownTimer -= dt;
           if (m.cooldownTimer <= 0) {
             m.cooldownTimer = m.attackCooldown;
@@ -575,7 +695,6 @@ export class GameEngine {
             });
           }
         } else if (m.isBoss) {
-          // Boss Complex AI
           m.cooldownTimer -= dt;
 
           if (distToPlayer > 45) {
@@ -586,16 +705,17 @@ export class GameEngine {
           if (m.cooldownTimer <= 0) {
             m.cooldownTimer = m.attackCooldown;
             sound.playBossRoar();
+            this.triggerScreenShake(0.3, 10);
 
-            // Boss Nova Attack
-            const orbs = 6;
+            // Boss Nova Attack (8 orbs)
+            const orbs = 8;
             for (let i = 0; i < orbs; i++) {
               const bAngle = angle + (Math.PI * 2 / orbs) * i;
               this.projectiles.push({
                 x: m.x,
                 y: m.y,
-                vx: Math.cos(bAngle) * 3.5,
-                vy: Math.sin(bAngle) * 3.5,
+                vx: Math.cos(bAngle) * 3.8,
+                vy: Math.sin(bAngle) * 3.8,
                 radius: 8,
                 damage: m.attack * 0.9,
                 fromPlayer: false,
@@ -605,13 +725,11 @@ export class GameEngine {
             }
           }
         } else {
-          // Regular Melee Chase
           if (distToPlayer > 28) {
             m.vx += Math.cos(angle) * m.speed;
             m.vy += Math.sin(angle) * m.speed;
           }
 
-          // Melee attack player
           m.cooldownTimer -= dt;
           if (distToPlayer <= (m.attackRange || 32) && m.cooldownTimer <= 0) {
             m.cooldownTimer = m.attackCooldown;
@@ -620,15 +738,10 @@ export class GameEngine {
         }
       }
 
-      // Apply monster velocity if inside walkable dungeon
       const nextX = m.x + m.vx;
       const nextY = m.y + m.vy;
-      if (isInsideWalkableDungeon(nextX, m.y, m.radius, this.dungeon)) {
-        m.x = nextX;
-      }
-      if (isInsideWalkableDungeon(m.x, nextY, m.radius, this.dungeon)) {
-        m.y = nextY;
-      }
+      if (isInsideWalkableDungeon(nextX, m.y, m.radius, this.dungeon)) m.x = nextX;
+      if (isInsideWalkableDungeon(m.x, nextY, m.radius, this.dungeon)) m.y = nextY;
     }
 
     // Update Projectiles
@@ -638,33 +751,18 @@ export class GameEngine {
       p.y += p.vy;
       p.life -= dt;
 
-      // Trail particle
-      if (Math.random() < 0.4) {
-        this.particles.push({
-          x: p.x,
-          y: p.y,
-          vx: (Math.random() - 0.5) * 0.5,
-          vy: (Math.random() - 0.5) * 0.5,
-          radius: 2,
-          color: p.color,
-          alpha: 0.6,
-          life: 0.2
-        });
-      }
-
-      // Check collision with walls
       if (!isInsideWalkableDungeon(p.x, p.y, p.radius, this.dungeon)) {
         p.life = 0;
       }
 
-      // Check collision with targets
       if (p.fromPlayer) {
         for (const m of this.monsters) {
           const d = Math.hypot(m.x - p.x, m.y - p.y);
           if (d <= m.radius + p.radius) {
             p.life = 0;
             if (p.isExplosive) {
-              sound.playSkillFireball();
+              sound.playSkillExplosion();
+              this.triggerScreenShake(0.2, 7);
               this.createShockwave(p.x, p.y, p.explodeRadius, '#f97316');
               for (const splashTarget of this.monsters) {
                 const sDist = Math.hypot(splashTarget.x - p.x, splashTarget.y - p.y);
@@ -679,7 +777,6 @@ export class GameEngine {
           }
         }
       } else {
-        // Enemy projectile hits player
         const d = Math.hypot(this.player.x - p.x, this.player.y - p.y);
         if (d <= this.player.radius + p.radius) {
           p.life = 0;
@@ -721,7 +818,7 @@ export class GameEngine {
       }
     }
 
-    // Update Camera (Lerp follow player)
+    // Update Camera
     const targetCamX = this.player.x - this.canvas.width / 2;
     const targetCamY = this.player.y - this.canvas.height / 2;
     this.camera.x += (targetCamX - this.camera.x) * 8 * dt;
@@ -740,6 +837,8 @@ export class GameEngine {
         bossHp: this.boss ? this.boss.hp : null,
         bossMaxHp: this.boss ? this.boss.maxHp : null,
         bossName: this.boss ? this.boss.name : null,
+        mercenaryHp: this.mercenary ? this.mercenary.hp : null,
+        mercenaryMaxHp: this.mercenary ? this.mercenary.maxHp : null,
         skillCooldowns: { ...this.input.skillCooldowns }
       });
     }
@@ -749,9 +848,16 @@ export class GameEngine {
     const { ctx, canvas } = this;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Save camera transform
     ctx.save();
-    ctx.translate(-Math.floor(this.camera.x), -Math.floor(this.camera.y));
+
+    // Camera with Screen Shake
+    let camX = this.camera.x;
+    let camY = this.camera.y;
+    if (this.camera.shakeTimer > 0) {
+      camX += (Math.random() - 0.5) * this.camera.shakeMag;
+      camY += (Math.random() - 0.5) * this.camera.shakeMag;
+    }
+    ctx.translate(-Math.floor(camX), -Math.floor(camY));
 
     // 1. Draw Dungeon Floor & Rooms
     ctx.fillStyle = '#0f141c';
@@ -771,7 +877,6 @@ export class GameEngine {
       ctx.fillStyle = room.isBoss ? '#1f132b' : room.isStart ? '#0f241a' : '#1a2332';
       ctx.fillRect(room.x, room.y, room.w, room.h);
 
-      // Floor grid lines
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
       ctx.lineWidth = 1;
       for (let rx = room.x; rx <= room.x + room.w; rx += 40) {
@@ -787,13 +892,12 @@ export class GameEngine {
         ctx.stroke();
       }
 
-      // Room border
       ctx.strokeStyle = room.isBoss ? '#7e22ce' : room.isStart ? '#10b981' : '#3a4e6e';
       ctx.lineWidth = 4;
       ctx.strokeRect(room.x, room.y, room.w, room.h);
     }
 
-    // 2. Draw Torches with warm lighting
+    // 2. Draw Torches
     for (const torch of this.dungeon.torches) {
       const flicker = Math.sin(this.torchTimer + torch.flickerOffset) * 4;
       const grad = ctx.createRadialGradient(torch.x, torch.y, 4, torch.x, torch.y, 55 + flicker);
@@ -806,7 +910,6 @@ export class GameEngine {
       ctx.arc(torch.x, torch.y, 60 + flicker, 0, Math.PI * 2);
       ctx.fill();
 
-      // Torch post
       ctx.fillStyle = '#f59e0b';
       ctx.beginPath();
       ctx.arc(torch.x, torch.y, 4, 0, Math.PI * 2);
@@ -822,25 +925,21 @@ export class GameEngine {
       ctx.strokeStyle = c.opened ? '#1e293b' : '#facc15';
       ctx.lineWidth = 2;
       ctx.strokeRect(-12, -9, 24, 18);
-
-      // Lock / Latch
       ctx.fillStyle = c.opened ? '#64748b' : '#ffffff';
       ctx.fillRect(-3, -3, 6, 6);
       ctx.restore();
     }
 
-    // 4. Draw Monsters
+    // 4. Draw Monsters & Boss
     for (const m of this.monsters) {
       ctx.save();
       ctx.translate(m.x, m.y);
 
-      // Shadow
       ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
       ctx.beginPath();
       ctx.ellipse(0, m.radius * 0.7, m.radius, m.radius * 0.4, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      // Glow / Telegraph aura for Boss
       if (m.isBoss) {
         const bGlow = ctx.createRadialGradient(0, 0, m.radius * 0.5, 0, 0, m.radius * 1.6);
         bGlow.addColorStop(0, m.glowColor || 'rgba(168, 85, 247, 0.6)');
@@ -851,7 +950,6 @@ export class GameEngine {
         ctx.fill();
       }
 
-      // Monster Body
       ctx.fillStyle = m.flashTimer > 0 ? '#ffffff' : m.color;
       ctx.beginPath();
       ctx.arc(0, 0, m.radius, 0, Math.PI * 2);
@@ -860,7 +958,6 @@ export class GameEngine {
       ctx.lineWidth = 2.5;
       ctx.stroke();
 
-      // Monster Eyes
       ctx.fillStyle = '#ffffff';
       ctx.beginPath();
       ctx.arc(-m.radius * 0.3, -m.radius * 0.2, m.radius * 0.22, 0, Math.PI * 2);
@@ -873,7 +970,7 @@ export class GameEngine {
       ctx.arc(m.radius * 0.3, -m.radius * 0.2, m.radius * 0.12, 0, Math.PI * 2);
       ctx.fill();
 
-      // Health Bar above monster
+      // Health bar
       const barW = Math.max(30, m.radius * 2);
       const barH = 4;
       const hpPct = Math.max(0, m.hp / m.maxHp);
@@ -885,32 +982,73 @@ export class GameEngine {
       ctx.restore();
     }
 
-    // 5. Draw Player
+    // 5. Draw Mercenary Party Companion
+    if (this.mercenary && this.mercenary.hp > 0) {
+      ctx.save();
+      ctx.translate(this.mercenary.x, this.mercenary.y);
+
+      // Companion shadow
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+      ctx.beginPath();
+      ctx.ellipse(0, 10, 14, 7, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Body circle
+      ctx.fillStyle = this.mercenary.color;
+      ctx.beginPath();
+      ctx.arc(0, 0, 14, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#facc15';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Companion mini label
+      ctx.font = "bold 9px 'Plus Jakarta Sans', sans-serif";
+      ctx.fillStyle = '#facc15';
+      ctx.textAlign = 'center';
+      ctx.fillText(this.mercenary.name.split(' ')[0], 0, -18);
+
+      // Companion HP bar
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+      ctx.fillRect(-15, -15, 30, 3);
+      ctx.fillStyle = '#22c55e';
+      ctx.fillRect(-15, -15, 30 * Math.max(0, this.mercenary.hp / this.mercenary.maxHp), 3);
+
+      ctx.restore();
+    }
+
+    // 6. Draw Player
     if (this.player.hp > 0) {
       ctx.save();
       ctx.translate(this.player.x, this.player.y);
 
-      // Invulnerability flicker
       if (this.player.invulnerableTimer > 0 && Math.floor(Date.now() / 60) % 2 === 0) {
         ctx.globalAlpha = 0.4;
       }
 
-      // Iron Bastion Shield Barrier
       if (this.player.ironBastionTimer > 0) {
         ctx.strokeStyle = '#f97316';
         ctx.lineWidth = 3;
         ctx.beginPath();
-        ctx.arc(0, 0, this.player.radius + 10, 0, Math.PI * 2);
+        ctx.arc(0, 0, this.player.radius + 12, 0, Math.PI * 2);
         ctx.stroke();
       }
 
-      // Player Shadow
+      if (this.player.frenzyTimer > 0) {
+        ctx.strokeStyle = '#facc15';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.arc(0, 0, this.player.radius + 8, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
+      // Shadow
       ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
       ctx.beginPath();
       ctx.ellipse(0, this.player.radius * 0.8, this.player.radius, this.player.radius * 0.4, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      // Player Body
+      // Body
       ctx.fillStyle = this.heroClass.color;
       ctx.beginPath();
       ctx.arc(0, 0, this.player.radius, 0, Math.PI * 2);
@@ -919,28 +1057,25 @@ export class GameEngine {
       ctx.lineWidth = 2.5;
       ctx.stroke();
 
-      // Direction pointer / Weapon
-      ctx.rotate(this.player.facingAngle);
-
       // Weapon
+      ctx.rotate(this.player.facingAngle);
       ctx.fillStyle = '#f8fafc';
-      ctx.fillRect(this.player.radius * 0.6, -3, 16, 6);
+      ctx.fillRect(this.player.radius * 0.6, -3, 18, 6);
       ctx.fillStyle = this.heroClass.secondaryColor;
       ctx.fillRect(this.player.radius * 0.5, -6, 4, 12);
 
-      // Slash visual arc
       if (this.player.isAttacking && this.heroClass.attackType === 'melee') {
-        ctx.strokeStyle = this.heroClass.color;
-        ctx.lineWidth = 4;
+        ctx.strokeStyle = this.player.frenzyTimer > 0 ? '#facc15' : this.heroClass.color;
+        ctx.lineWidth = 5;
         ctx.beginPath();
-        ctx.arc(0, 0, this.player.radius + 24, -0.6, 0.6);
+        ctx.arc(0, 0, this.player.radius + 26, -0.7, 0.7);
         ctx.stroke();
       }
 
       ctx.restore();
     }
 
-    // 6. Draw Projectiles
+    // 7. Draw Projectiles
     for (const p of this.projectiles) {
       ctx.save();
       ctx.fillStyle = p.color;
@@ -950,7 +1085,7 @@ export class GameEngine {
       ctx.restore();
     }
 
-    // 7. Draw Particles & Shockwaves
+    // 8. Draw Particles & Shockwaves
     for (const pt of this.particles) {
       ctx.save();
       ctx.globalAlpha = pt.alpha;
@@ -969,7 +1104,7 @@ export class GameEngine {
       ctx.restore();
     }
 
-    // 8. Draw Floating Damage Text
+    // 9. Draw Floating Damage Text
     for (const ft of this.floatingTexts) {
       ctx.save();
       ctx.globalAlpha = ft.alpha;
@@ -982,10 +1117,9 @@ export class GameEngine {
       ctx.restore();
     }
 
-    // Restore camera
     ctx.restore();
 
-    // 9. Draw Mini-map in top right
+    // 10. Mini-map
     this.renderMiniMap(ctx);
   }
 
@@ -1004,13 +1138,11 @@ export class GameEngine {
     const scaleX = mmSize / this.dungeon.mapWidth;
     const scaleY = mmSize / this.dungeon.mapHeight;
 
-    // Rooms
     for (const r of this.dungeon.rooms) {
       ctx.fillStyle = r.isBoss ? '#a855f7' : r.isStart ? '#10b981' : '#64748b';
       ctx.fillRect(mmX + r.x * scaleX, mmY + r.y * scaleY, r.w * scaleX, r.h * scaleY);
     }
 
-    // Player blip
     ctx.fillStyle = '#facc15';
     ctx.beginPath();
     ctx.arc(mmX + this.player.x * scaleX, mmY + this.player.y * scaleY, 2.5, 0, Math.PI * 2);

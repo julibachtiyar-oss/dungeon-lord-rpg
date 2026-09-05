@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   Crown, 
   Coins, 
@@ -10,10 +10,13 @@ import {
   Play, 
   Sparkles, 
   ShieldAlert,
-  HelpCircle
+  Swords,
+  Map,
+  ListFilter
 } from 'lucide-react';
 import { DUNGEON_ROOMS_TEMPLATE } from '../constants/rooms';
 import { HERO_CLASSES } from '../constants/classes';
+import DungeonSanctuaryMap from './DungeonSanctuaryMap';
 import { sound } from '../engine/soundEngine';
 
 export default function DungeonManagement({
@@ -23,10 +26,15 @@ export default function DungeonManagement({
   onClaimPassiveIncome,
   onStartAdventure,
   onOpenInventory,
-  onOpenClassSelect
+  onOpenClassSelect,
+  onUpdateGrid,
+  onAddSanctuaryRewards,
+  onAddLoot
 }) {
-  const { gold, gems, rooms, unclaimedGold, heroLevel } = gameState;
+  const { gold, gems, rooms, unclaimedGold, heroLevel, gridState } = gameState;
   const activeHero = heroClass || HERO_CLASSES[gameState?.heroClassId] || HERO_CLASSES.warrior;
+
+  const [managementView, setManagementView] = useState('map'); // 'map' | 'facilities'
 
   const iconMap = {
     Crown,
@@ -51,7 +59,7 @@ export default function DungeonManagement({
     const gemCost = room.baseGemCost * room.level;
 
     if (gold < goldCost || gems < gemCost) {
-      sound.playEnemyHit();
+      sound.playAttackMelee();
       return;
     }
 
@@ -60,13 +68,13 @@ export default function DungeonManagement({
   };
 
   // Calculate total passive gold per second
-  const goldVault = rooms.find(r => r.id === 'gold_vault');
-  const goldPerSec = (goldVault?.level || 1) * 2.5;
+  const vaultCount = gridState ? gridState.filter(c => c === 'vault').length : 1;
+  const goldPerSec = Math.max(3.0, vaultCount * 4.0);
 
   return (
     <div className="w-full h-full flex flex-col bg-gradient-to-b from-dungeon-950 via-dungeon-900 to-dungeon-950 text-slate-100 overflow-y-auto pb-24">
       {/* Header Bar */}
-      <div className="sticky top-0 z-30 bg-dungeon-950/90 backdrop-blur-md border-b border-dungeon-800 px-4 py-3 flex items-center justify-between">
+      <div className="sticky top-0 z-30 bg-dungeon-950/95 backdrop-blur-md border-b border-dungeon-800 px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-purple-700 to-amber-500 flex items-center justify-center shadow-lg shadow-purple-900/30">
             <Crown size={20} className="text-white" />
@@ -101,14 +109,14 @@ export default function DungeonManagement({
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
               <span className="text-xs font-bold text-gold-300 uppercase tracking-wide">
-                Pendapatan Pasif Tambang
+                Pendapatan Tambang Goblin
               </span>
             </div>
             <div className="text-2xl font-black font-fantasy text-white flex items-center gap-1">
               +{Math.floor(unclaimedGold)} <span className="text-xs text-gold-400 font-mono">Gold Siap Klaim</span>
             </div>
             <p className="text-[11px] text-slate-400">
-              Menghasilkan <span className="text-gold-400 font-bold">+{goldPerSec.toFixed(1)} gold/detik</span> saat online maupun offline.
+              Menghasilkan <span className="text-gold-400 font-bold">+{goldPerSec.toFixed(1)} gold/detik</span> dari {vaultCount} tambang aktif.
             </p>
           </div>
 
@@ -131,8 +139,8 @@ export default function DungeonManagement({
               <Hammer size={20} />
             </div>
             <div>
-              <span className="text-xs font-bold text-white block">Tas & Perlengkapan</span>
-              <span className="text-[10px] text-slate-400">Senjata, Zirah & Relik</span>
+              <span className="text-xs font-bold text-white block">Tas & Party Minion</span>
+              <span className="text-[10px] text-slate-400">Paperdoll 7 Slot & Rekan</span>
             </div>
           </button>
 
@@ -145,7 +153,7 @@ export default function DungeonManagement({
             </div>
             <div>
               <span className="text-xs font-bold text-white block">Ganti Kelas Hero</span>
-              <span className="text-[10px] text-slate-400">Warrior / Mage / Rogue</span>
+              <span className="text-[10px] text-slate-400">Black Knight / Mage / Rogue</span>
             </div>
           </button>
         </div>
@@ -153,103 +161,143 @@ export default function DungeonManagement({
         {/* Big Start Adventure Button */}
         <button
           onClick={onStartAdventure}
-          className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-blood-600 via-amber-600 to-blood-600 hover:brightness-110 text-white font-fantasy font-black text-base uppercase tracking-wider shadow-2xl shadow-blood-600/40 active:scale-98 transition-all flex items-center justify-center gap-3 border border-amber-400/50"
+          className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-blood-600 via-amber-600 to-blood-600 hover:brightness-110 text-white font-fantasy font-black text-sm sm:text-base uppercase tracking-wider shadow-2xl shadow-blood-600/40 active:scale-98 transition-all flex items-center justify-center gap-3 border border-amber-400/50"
         >
           <Play size={22} className="fill-white" />
-          <span>MULAI PETUALANGAN DUNGEON (ACTION RPG)</span>
+          <span>EKSPEDISI DUNGEON LIAR (ACTION RPG INOTIA)</span>
         </button>
 
-        {/* Section: Rooms Management */}
-        <div className="space-y-3 pt-2">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xs font-black uppercase tracking-wider text-slate-400 font-fantasy">
-              Ruangan & Fasilitas Dungeon ({rooms.length})
-            </h2>
-            <span className="text-[10px] text-slate-500">Upgrade untuk memperkuat kerajaan</span>
-          </div>
+        {/* Section Mode Switcher: Visual Map vs Room Facilities */}
+        <div className="flex bg-dungeon-950 p-1.5 rounded-2xl border border-dungeon-800 gap-2">
+          <button
+            onClick={() => setManagementView('map')}
+            className={`flex-1 py-2 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all ${
+              managementView === 'map'
+                ? 'bg-gold-500 text-black shadow-md'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <Map size={14} />
+            <span>Peta Visual & Invasi Petualang</span>
+          </button>
 
-          <div className="space-y-3">
-            {rooms.map((room) => {
-              const IconComponent = iconMap[room.icon] || Crown;
-              const goldCost = Math.floor(room.baseGoldCost * Math.pow(room.costMultiplier, room.level - 1));
-              const gemCost = room.baseGemCost * room.level;
-              const canAfford = gold >= goldCost && gems >= gemCost;
-
-              return (
-                <div
-                  key={room.id}
-                  className="rounded-2xl p-4 bg-dungeon-850/80 border border-dungeon-700/80 shadow-md space-y-3 relative overflow-hidden"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <div
-                        className="w-11 h-11 rounded-xl flex items-center justify-center shadow-md shrink-0"
-                        style={{
-                          backgroundColor: `${room.color}20`,
-                          border: `1.5px solid ${room.color}50`,
-                          color: room.color
-                        }}
-                      >
-                        <IconComponent size={22} />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h3 className="text-sm font-black text-white">{room.name}</h3>
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-dungeon-700 text-gold-400 border border-dungeon-600">
-                            Lv.{room.level}
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-slate-400 leading-snug mt-0.5">
-                          {room.desc}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Room Bonus Effect */}
-                  <div className="p-2.5 rounded-xl bg-black/40 border border-dungeon-700/50 text-[11px] text-emerald-400 font-medium">
-                    ✨ Efek: {(() => {
-                      const tpl = DUNGEON_ROOMS_TEMPLATE.find(t => t.id === room.id) || room;
-                      if (typeof tpl.effectDesc === 'function') return tpl.effectDesc(room.level);
-                      if (typeof room.effectDesc === 'function') return room.effectDesc(room.level);
-                      return 'Meningkatkan kekuatan dungeon.';
-                    })()}
-                  </div>
-
-                  {/* Upgrade Action Footer */}
-                  <div className="flex items-center justify-between pt-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] text-slate-400 uppercase font-bold">Biaya:</span>
-                      <div className="flex items-center gap-1 text-xs font-black text-gold-400">
-                        <Coins size={13} />
-                        <span>{goldCost.toLocaleString()}</span>
-                      </div>
-                      {gemCost > 0 && (
-                        <div className="flex items-center gap-1 text-xs font-black text-purple-300 ml-1">
-                          <Sparkles size={13} />
-                          <span>{gemCost}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    <button
-                      onClick={() => handleUpgrade(room.id)}
-                      disabled={!canAfford}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 transition-all shadow-md active:scale-95 ${
-                        canAfford
-                          ? 'bg-gold-500 hover:bg-gold-400 text-black shadow-gold-500/20'
-                          : 'bg-dungeon-700 text-slate-500 cursor-not-allowed opacity-60'
-                      }`}
-                    >
-                      <ArrowUpCircle size={14} />
-                      <span>Upgrade</span>
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          <button
+            onClick={() => setManagementView('facilities')}
+            className={`flex-1 py-2 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all ${
+              managementView === 'facilities'
+                ? 'bg-purple-600 text-white shadow-md'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <ListFilter size={14} />
+            <span>Upgrade Ruangan</span>
+          </button>
         </div>
+
+        {/* View 1: Visual Interactive Grid Map with NPC Invaders */}
+        {managementView === 'map' && (
+          <DungeonSanctuaryMap
+            gridState={gridState}
+            onUpdateGrid={onUpdateGrid}
+            gold={gold}
+            gems={gems}
+            onAddRewards={onAddSanctuaryRewards}
+            onAddLoot={onAddLoot}
+            heroClass={activeHero}
+          />
+        )}
+
+        {/* View 2: Detailed Room Upgrades */}
+        {managementView === 'facilities' && (
+          <div className="space-y-3 pt-2">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xs font-black uppercase tracking-wider text-slate-400 font-fantasy">
+                Fasilitas & Kamar Khusus ({rooms.length})
+              </h2>
+              <span className="text-[10px] text-slate-500">Upgrade level kamar utama</span>
+            </div>
+
+            <div className="space-y-3">
+              {rooms.map((room) => {
+                const IconComponent = iconMap[room.icon] || Crown;
+                const goldCost = Math.floor(room.baseGoldCost * Math.pow(room.costMultiplier, room.level - 1));
+                const gemCost = room.baseGemCost * room.level;
+                const canAfford = gold >= goldCost && gems >= gemCost;
+
+                return (
+                  <div
+                    key={room.id}
+                    className="rounded-2xl p-4 bg-dungeon-850/80 border border-dungeon-700/80 shadow-md space-y-3 relative overflow-hidden"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div
+                          className="w-11 h-11 rounded-xl flex items-center justify-center shadow-md shrink-0"
+                          style={{
+                            backgroundColor: `${room.color}20`,
+                            border: `1.5px solid ${room.color}50`,
+                            color: room.color
+                          }}
+                        >
+                          <IconComponent size={22} />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h3 className="text-sm font-black text-white">{room.name}</h3>
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-dungeon-700 text-gold-400 border border-dungeon-600">
+                              Lv.{room.level}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-400 leading-snug mt-0.5">
+                            {room.desc}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="p-2.5 rounded-xl bg-black/40 border border-dungeon-700/50 text-[11px] text-emerald-400 font-medium">
+                      ✨ Efek: {(() => {
+                        const tpl = DUNGEON_ROOMS_TEMPLATE.find(t => t.id === room.id) || room;
+                        if (typeof tpl.effectDesc === 'function') return tpl.effectDesc(room.level);
+                        if (typeof room.effectDesc === 'function') return room.effectDesc(room.level);
+                        return 'Meningkatkan kekuatan dungeon.';
+                      })()}
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-slate-400 uppercase font-bold">Biaya:</span>
+                        <div className="flex items-center gap-1 text-xs font-black text-gold-400">
+                          <Coins size={13} />
+                          <span>{goldCost.toLocaleString()}</span>
+                        </div>
+                        {gemCost > 0 && (
+                          <div className="flex items-center gap-1 text-xs font-black text-purple-300 ml-1">
+                            <Sparkles size={13} />
+                            <span>{gemCost}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      <button
+                        onClick={() => handleUpgrade(room.id)}
+                        disabled={!canAfford}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 transition-all shadow-md active:scale-95 ${
+                          canAfford
+                            ? 'bg-gold-500 hover:bg-gold-400 text-black shadow-gold-500/20'
+                            : 'bg-dungeon-700 text-slate-500 cursor-not-allowed opacity-60'
+                        }`}
+                      >
+                        <ArrowUpCircle size={14} />
+                        <span>Upgrade</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
