@@ -21,8 +21,16 @@ const GameCanvas = forwardRef(function GameCanvas({
     if (!canvas) return;
 
     const updateSize = () => {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      canvas.width = Math.round(w * dpr);
+      canvas.height = Math.round(h * dpr);
+      canvas.style.width = `${w}px`;
+      canvas.style.height = `${h}px`;
+      if (engineRef.current) {
+        engineRef.current.resize(w, h, dpr);
+      }
     };
     updateSize();
 
@@ -39,6 +47,9 @@ const GameCanvas = forwardRef(function GameCanvas({
       onLootDrop,
       onBossEncounter
     });
+
+    const initialDpr = Math.min(window.devicePixelRatio || 1, 2.5);
+    engine.resize(window.innerWidth, window.innerHeight, initialDpr);
 
     engineRef.current = engine;
     engine.start();

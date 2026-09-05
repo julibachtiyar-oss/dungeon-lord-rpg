@@ -245,6 +245,7 @@ class InotiaSoundEngine {
     g.connect(this.sfxGain);
     osc.start(t);
     osc.stop(t + 0.1);
+    this.vibrate(18);
   }
 
   playCriticalHit() {

@@ -18,6 +18,9 @@ export class GameEngine {
   }) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
+    this.logicalWidth = window.innerWidth;
+    this.logicalHeight = window.innerHeight;
+    this.dpr = Math.min(window.devicePixelRatio || 1, 2.5);
     this.dungeon = dungeonData;
     this.heroClass = heroClass;
     this.onStatsUpdate = onStatsUpdate;
@@ -141,6 +144,12 @@ export class GameEngine {
       cancelAnimationFrame(this.animId);
     }
     sound.stopBGM();
+  }
+
+  resize(w, h, dpr) {
+    this.logicalWidth = w;
+    this.logicalHeight = h;
+    if (dpr) this.dpr = dpr;
   }
 
   triggerScreenShake(duration = 0.25, magnitude = 8) {
@@ -739,12 +748,14 @@ export class GameEngine {
     }
 
     // Ambient floating dust particles
+    const screenW = this.logicalWidth || this.canvas.width;
+    const screenH = this.logicalHeight || this.canvas.height;
     for (const d of this.ambientDust) {
       d.y -= d.speedY * dt;
       d.x += Math.sin(this.gameTime * 2 + d.wobbleOffset) * 8 * dt;
       if (d.y < -10) {
-        d.y = this.canvas.height + 10;
-        d.x = Math.random() * this.canvas.width;
+        d.y = screenH + 10;
+        d.x = Math.random() * screenW;
       }
     }
 
@@ -1122,8 +1133,10 @@ export class GameEngine {
     }
 
     // Update Camera
-    const targetCamX = this.player.x - this.canvas.width / 2;
-    const targetCamY = this.player.y - this.canvas.height / 2;
+    const camW = this.logicalWidth || this.canvas.width;
+    const camH = this.logicalHeight || this.canvas.height;
+    const targetCamX = this.player.x - camW / 2;
+    const targetCamY = this.player.y - camH / 2;
     this.camera.x += (targetCamX - this.camera.x) * 8 * dt;
     this.camera.y += (targetCamY - this.camera.y) * 8 * dt;
 
@@ -1165,7 +1178,14 @@ export class GameEngine {
 
   render() {
     const { ctx, canvas } = this;
+    const dpr = this.dpr || 1;
+    const w = this.logicalWidth || canvas.width;
+    const h = this.logicalHeight || canvas.height;
+
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    ctx.save();
+    ctx.scale(dpr, dpr);
 
     ctx.save();
 
@@ -1297,7 +1317,7 @@ export class GameEngine {
     if (this.screenFlash.timer > 0) {
       ctx.save();
       ctx.fillStyle = this.screenFlash.color;
-      ctx.fillRect(camX - 100, camY - 100, canvas.width + 200, canvas.height + 200);
+      ctx.fillRect(camX - 100, camY - 100, w + 200, h + 200);
       ctx.restore();
     }
 
@@ -1317,22 +1337,25 @@ export class GameEngine {
     // 11. Cinematic Dark Dungeon Vignette
     ctx.save();
     const vigGrad = ctx.createRadialGradient(
-      canvas.width / 2, canvas.height / 2, Math.min(canvas.width, canvas.height) * 0.42,
-      canvas.width / 2, canvas.height / 2, Math.max(canvas.width, canvas.height) * 0.78
+      w / 2, h / 2, Math.min(w, h) * 0.42,
+      w / 2, h / 2, Math.max(w, h) * 0.78
     );
     vigGrad.addColorStop(0, 'rgba(0, 0, 0, 0)');
     vigGrad.addColorStop(1, 'rgba(3, 5, 10, 0.65)');
     ctx.fillStyle = vigGrad;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillRect(0, 0, w, h);
     ctx.restore();
 
     // 12. Mini-map with Fog of War
-    this.renderMiniMap(ctx);
+    this.renderMiniMap(ctx, w, h);
+
+    ctx.restore();
   }
 
-  renderMiniMap(ctx) {
+  renderMiniMap(ctx, screenW, screenH) {
     const mmSize = 75;
-    const mmX = this.canvas.width - mmSize - 12;
+    const w = screenW || this.logicalWidth || this.canvas.width;
+    const mmX = w - mmSize - 12;
     const mmY = 14;
 
     ctx.save();
