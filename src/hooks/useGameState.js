@@ -28,7 +28,9 @@ export function useGameState() {
       inventory: [],
       rooms: DUNGEON_ROOMS_TEMPLATE.map(r => ({ ...r, level: 1 })),
       soundEnabled: true,
-      prologueSeen: false
+      prologueSeen: false,
+      monsterKills: {},
+      claimedBounties: []
     };
 
     try {
@@ -252,7 +254,7 @@ export function useGameState() {
     });
   }, []);
 
-  const addExpAndGold = useCallback((earnedGold, earnedGems, kills) => {
+  const addExpAndGold = useCallback((earnedGold, earnedGems, kills, killedTypes = {}) => {
     setGameState(prev => {
       let expToAdd = kills * 40;
       let newExp = prev.heroExp + expToAdd;
@@ -267,13 +269,32 @@ export function useGameState() {
         sound.playLevelUp();
       }
 
+      const updatedKills = { ...(prev.monsterKills || {}) };
+      for (const [type, count] of Object.entries(killedTypes)) {
+        updatedKills[type] = (updatedKills[type] || 0) + count;
+      }
+
       return {
         ...prev,
         gold: prev.gold + earnedGold,
         gems: prev.gems + earnedGems,
         heroLevel: newLevel,
         heroExp: newExp,
-        talentPoints: newTalentPoints
+        talentPoints: newTalentPoints,
+        monsterKills: updatedKills
+      };
+    });
+  }, []);
+
+  const claimBounty = useCallback((bounty) => {
+    setGameState(prev => {
+      if ((prev.claimedBounties || []).includes(bounty.id)) return prev;
+      sound.playLevelUp();
+      return {
+        ...prev,
+        gold: prev.gold + bounty.rewardGold,
+        gems: prev.gems + bounty.rewardGems,
+        claimedBounties: [...(prev.claimedBounties || []), bounty.id]
       };
     });
   }, []);
@@ -446,6 +467,7 @@ export function useGameState() {
     learnTalent,
     resetTalents,
     enhanceEquipment,
-    socketGem
+    socketGem,
+    claimBounty
   };
 }

@@ -99,6 +99,7 @@ export class GameEngine {
     this.floatingTexts = [];
     this.telegraphs = [];
     this.moltenPools = [];
+    this.killedTypes = {};
     this.boss = this.monsters.find(m => m.isBoss) || null;
     this.bossEncounterTriggered = false;
 
@@ -478,6 +479,7 @@ export class GameEngine {
     }
 
     this.player.kills++;
+    this.killedTypes[monster.type] = (this.killedTypes[monster.type] || 0) + 1;
     sound.playCoinCollect();
 
     const gold = Array.isArray(monster.goldReward)
@@ -512,7 +514,8 @@ export class GameEngine {
         this.onDungeonClear({
           goldEarned: this.player.goldEarned,
           gemsEarned: this.player.gemsEarned,
-          kills: this.player.kills
+          kills: this.player.kills,
+          killedTypes: { ...this.killedTypes }
         });
       }
     }
@@ -547,7 +550,8 @@ export class GameEngine {
       if (this.onGameOver) {
         this.onGameOver({
           goldEarned: Math.floor(this.player.goldEarned * 0.6),
-          kills: this.player.kills
+          kills: this.player.kills,
+          killedTypes: { ...this.killedTypes }
         });
       }
     }

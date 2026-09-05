@@ -31,6 +31,7 @@ import InstallPwaPrompt from './components/InstallPwaPrompt';
 import TitleScreen from './components/TitleScreen';
 import StoryDialogueModal from './components/StoryDialogueModal';
 import AudioSettingsModal from './components/AudioSettingsModal';
+import BountyBoardModal from './components/BountyBoardModal';
 import { DUNGEON_FLOORS } from './constants/rooms';
 import { sound } from './engine/soundEngine';
 
@@ -56,7 +57,8 @@ export default function App() {
     learnTalent,
     resetTalents,
     enhanceEquipment,
-    socketGem
+    socketGem,
+    claimBounty
   } = useGameState();
 
   // Screens: 'title' | 'sanctuary' | 'adventure'
@@ -67,6 +69,7 @@ export default function App() {
   const [isFloorSelectOpen, setIsFloorSelectOpen] = useState(false);
   const [isTalentTreeOpen, setIsTalentTreeOpen] = useState(false);
   const [isAudioSettingsOpen, setIsAudioSettingsOpen] = useState(false);
+  const [isBountyBoardOpen, setIsBountyBoardOpen] = useState(false);
   const [soundMuted, setSoundMuted] = useState(false);
 
   // Story Dialogue State
@@ -174,7 +177,8 @@ export default function App() {
   }, []);
 
   const handleDungeonClear = useCallback((result) => {
-    addExpAndGold(result.goldEarned, result.gemsEarned, result.kills);
+    sound.playVictoryFanfare?.();
+    addExpAndGold(result.goldEarned, result.gemsEarned, result.kills, result.killedTypes);
     setVictoryData(result);
 
     try {
@@ -187,7 +191,7 @@ export default function App() {
   }, [addExpAndGold]);
 
   const handleGameOver = useCallback((result) => {
-    addExpAndGold(result.goldEarned, 0, result.kills);
+    addExpAndGold(result.goldEarned, 0, result.kills, result.killedTypes);
     setDefeatData(result);
   }, [addExpAndGold]);
 
@@ -220,7 +224,7 @@ export default function App() {
 
   const handleExitToSanctuary = () => {
     if (currentView === 'adventure' && liveStats.goldEarned > 0) {
-      addExpAndGold(liveStats.goldEarned, liveStats.gemsEarned, liveStats.kills);
+      addExpAndGold(liveStats.goldEarned, liveStats.gemsEarned, liveStats.kills, liveStats.killedTypes);
     }
     sound.playBGM('sanctuary');
     setCurrentView('sanctuary');
@@ -253,6 +257,7 @@ export default function App() {
           onOpenClassSelect={() => setIsClassSelectOpen(true)}
           onOpenTalentTree={() => setIsTalentTreeOpen(true)}
           onOpenAudioSettings={() => setIsAudioSettingsOpen(true)}
+          onOpenBountyBoard={() => setIsBountyBoardOpen(true)}
           onUpdateGrid={updateGrid}
           onAddSanctuaryRewards={addSanctuaryRewards}
           onAddLoot={addLootItem}
@@ -557,7 +562,17 @@ export default function App() {
         onClose={() => setIsAudioSettingsOpen(false)}
       />
 
-      {/* 12. PWA Install Prompt */}
+      {/* 12. Inotia Bounty Board & Monster Codex Modal */}
+      <BountyBoardModal
+        isOpen={isBountyBoardOpen}
+        onClose={() => setIsBountyBoardOpen(false)}
+        bountyProgress={gameState.monsterKills || {}}
+        claimedBounties={gameState.claimedBounties || []}
+        onClaimBounty={claimBounty}
+        monsterKills={gameState.monsterKills || {}}
+      />
+
+      {/* 13. PWA Install Prompt */}
       <InstallPwaPrompt />
     </div>
   );

@@ -14,7 +14,8 @@ import {
   Map,
   ListFilter,
   Award,
-  Volume2
+  Volume2,
+  Target
 } from 'lucide-react';
 import { DUNGEON_ROOMS_TEMPLATE } from '../constants/rooms';
 import { HERO_CLASSES } from '../constants/classes';
@@ -31,6 +32,7 @@ export default function DungeonManagement({
   onOpenClassSelect,
   onOpenTalentTree,
   onOpenAudioSettings,
+  onOpenBountyBoard,
   onUpdateGrid,
   onAddSanctuaryRewards,
   onAddLoot
@@ -143,23 +145,23 @@ export default function DungeonManagement({
         </div>
 
         {/* Hero Quick Navigation Cards */}
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-4 gap-1.5">
           <button
             onClick={onOpenInventory}
-            className="p-2.5 rounded-2xl bg-dungeon-850 border border-dungeon-700/70 hover:border-slate-500 active:scale-98 transition-all flex flex-col items-center text-center gap-1.5 shadow-md"
+            className="p-2 rounded-2xl bg-dungeon-850 border border-dungeon-700/70 hover:border-slate-500 active:scale-98 transition-all flex flex-col items-center text-center gap-1 shadow-md"
           >
             <div className="w-8 h-8 rounded-xl bg-blood-600/20 border border-blood-500/40 flex items-center justify-center text-blood-400">
               <Hammer size={16} />
             </div>
             <div>
-              <span className="text-[11px] font-bold text-white block leading-tight">Tas & Party</span>
-              <span className="text-[9px] text-slate-400">7 Slot</span>
+              <span className="text-[10px] font-bold text-white block leading-tight">Tas & Tempa</span>
+              <span className="text-[8px] text-slate-400">7 Slot</span>
             </div>
           </button>
 
           <button
             onClick={onOpenTalentTree}
-            className="p-2.5 rounded-2xl bg-dungeon-850 border border-gold-500/40 hover:border-gold-400 active:scale-98 transition-all flex flex-col items-center text-center gap-1.5 relative shadow-md shadow-gold-500/10"
+            className="p-2 rounded-2xl bg-dungeon-850 border border-gold-500/40 hover:border-gold-400 active:scale-98 transition-all flex flex-col items-center text-center gap-1 relative shadow-md shadow-gold-500/10"
           >
             {(gameState.talentPoints || 0) > 0 && (
               <span className="absolute -top-1.5 -right-1.5 bg-gradient-to-r from-amber-500 to-yellow-400 text-black text-[9px] font-black w-5 h-5 rounded-full flex items-center justify-center shadow-md animate-bounce border border-yellow-200">
@@ -170,21 +172,34 @@ export default function DungeonManagement({
               <Award size={16} />
             </div>
             <div>
-              <span className="text-[11px] font-bold text-gold-300 block leading-tight">Pohon Bakat</span>
-              <span className="text-[9px] text-slate-400">3 Cabang</span>
+              <span className="text-[10px] font-bold text-gold-300 block leading-tight">Bakat Hero</span>
+              <span className="text-[8px] text-slate-400">3 Cabang</span>
+            </div>
+          </button>
+
+          <button
+            onClick={onOpenBountyBoard}
+            className="p-2 rounded-2xl bg-dungeon-850 border border-amber-500/40 hover:border-amber-400 active:scale-98 transition-all flex flex-col items-center text-center gap-1 shadow-md"
+          >
+            <div className="w-8 h-8 rounded-xl bg-amber-600/20 border border-amber-500/40 flex items-center justify-center text-amber-400">
+              <Target size={16} />
+            </div>
+            <div>
+              <span className="text-[10px] font-bold text-white block leading-tight">Misi Buronan</span>
+              <span className="text-[8px] text-amber-400">& Codex</span>
             </div>
           </button>
 
           <button
             onClick={onOpenClassSelect}
-            className="p-2.5 rounded-2xl bg-dungeon-850 border border-dungeon-700/70 hover:border-slate-500 active:scale-98 transition-all flex flex-col items-center text-center gap-1.5 shadow-md"
+            className="p-2 rounded-2xl bg-dungeon-850 border border-dungeon-700/70 hover:border-slate-500 active:scale-98 transition-all flex flex-col items-center text-center gap-1 shadow-md"
           >
             <div className="w-8 h-8 rounded-xl bg-indigo-600/20 border border-indigo-500/40 flex items-center justify-center text-indigo-400">
               <Crown size={16} />
             </div>
             <div>
-              <span className="text-[11px] font-bold text-white block leading-tight">Ganti Kelas</span>
-              <span className="text-[9px] text-slate-400">3 Class</span>
+              <span className="text-[10px] font-bold text-white block leading-tight">Ganti Kelas</span>
+              <span className="text-[8px] text-slate-400">3 Class</span>
             </div>
           </button>
         </div>
