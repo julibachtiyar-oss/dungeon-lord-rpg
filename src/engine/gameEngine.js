@@ -96,6 +96,8 @@ export class GameEngine {
     this.projectiles = [];
     this.particles = [];
     this.floatingTexts = [];
+    this.telegraphs = [];
+    this.moltenPools = [];
     this.boss = this.monsters.find(m => m.isBoss) || null;
     this.bossEncounterTriggered = false;
 
@@ -362,9 +364,63 @@ export class GameEngine {
   }
 
   damageMonster(monster, rawDamage, isCrit = false) {
-    const netDamage = Math.max(1, Math.round(rawDamage - (monster.defense || 0) * 0.5));
+    let effectiveDamage = rawDamage;
+
+    // Ironhide Affix: 45% damage mitigation + metal shield deflect sparks
+    if (monster.isElite && monster.affix === 'Ironhide') {
+      effectiveDamage = Math.round(effectiveDamage * 0.55);
+      this.createHitSparks(monster.x, monster.y, '#38bdf8', 6);
+      this.addFloatingText(monster.x, monster.y - monster.radius - 20, '🛡️ KEBAL!', '#38bdf8', 12);
+    }
+
+    const netDamage = Math.max(1, Math.round(effectiveDamage - (monster.defense || 0) * 0.5));
     monster.hp -= netDamage;
     monster.flashTimer = 0.15;
+
+    // Boss Multi-Phase: Enrage at <= 50% HP
+    if (monster.isBoss && monster.hp <= monster.maxHp * 0.5 && !monster.isEnraged) {
+      monster.isEnraged = true;
+      monster.speed = Math.round(monster.speed * 1.35 * 10) / 10;
+      monster.attack = Math.round(monster.attack * 1.25);
+      monster.radius = Math.round(monster.radius * 1.15);
+      this.triggerScreenShake(0.5, 16);
+      this.screenFlash = { color: 'rgba(239, 68, 68, 0.45)', timer: 0.25 };
+      sound.playBossRoar();
+      this.addFloatingText(monster.x, monster.y - 45, '⚠️ BOSS ENRAGED! (KEMURKAAN ABADI)', '#ef4444', 18);
+
+      // Summon 2 Elite Skeletal Guards to protect the Boss
+      for (let g = 0; g < 2; g++) {
+        const offset = (g === 0 ? -50 : 50);
+        this.monsters.push({
+          id: `guard_${Date.now()}_${g}`,
+          type: 'skeleton_archer',
+          name: '💀 Pengawal Bos',
+          isBoss: false,
+          isElite: true,
+          affix: 'Ironhide',
+          affixTimer: 0,
+          x: monster.x + offset,
+          y: monster.y + 35,
+          radius: 18,
+          maxHp: 160,
+          hp: 160,
+          attack: 22,
+          defense: 8,
+          speed: 1.5,
+          color: '#cbd5e1',
+          glowColor: '#38bdf8',
+          behavior: 'chase',
+          attackCooldown: 1.5,
+          cooldownTimer: 0.3,
+          vx: 0,
+          vy: 0,
+          roomIndex: monster.roomIndex,
+          xpReward: 60,
+          goldReward: [30, 60]
+        });
+        this.createShockwave(monster.x + offset, monster.y + 35, 45, '#ef4444');
+      }
+    }
 
     // Combo system
     this.comboCount++;
@@ -472,6 +528,14 @@ export class GameEngine {
     this.player.invulnerableTimer = 0.38;
     sound.playAttackMelee();
     this.triggerScreenShake(0.18, 6);
+
+    // Vampiric Affix: Leech 45% of damage dealt back as HP
+    if (source && source.isElite && source.affix === 'Vampiric') {
+      const heal = Math.round(netDmg * 0.45);
+      source.hp = Math.min(source.maxHp, source.hp + heal);
+      this.addFloatingText(source.x, source.y - source.radius - 12, `+${heal} HP`, '#4ade80', 13);
+      this.createAuraParticles(source.x, source.y, '#22c55e', 8);
+    }
 
     this.addFloatingText(this.player.x, this.player.y - 30, `-${netDmg}`, '#ef4444', 16);
     this.createHitSparks(this.player.x, this.player.y, '#ef4444', 12);
@@ -625,6 +689,34 @@ export class GameEngine {
       d.alpha = Math.min(0.7, d.life / 6.0);
       if (d.life <= 0) {
         this.floorDecals.splice(i, 1);
+      }
+    }
+
+    // Molten Pools decay & player burn damage
+    for (let i = this.moltenPools.length - 1; i >= 0; i--) {
+      const p = this.moltenPools[i];
+      p.life -= dt;
+      p.tickTimer = (p.tickTimer || 0) - dt;
+
+      const dPlayer = Math.hypot(this.player.x - p.x, this.player.y - p.y);
+      if (dPlayer <= p.radius + this.player.radius && p.tickTimer <= 0) {
+        p.tickTimer = 0.55;
+        this.damagePlayer(p.damage || 5, null);
+        this.createHitSparks(this.player.x, this.player.y, '#f97316', 4);
+      }
+
+      if (p.life <= 0) {
+        this.moltenPools.splice(i, 1);
+      }
+    }
+
+    // Danger AoE Telegraphs countdown & detonation
+    for (let i = this.telegraphs.length - 1; i >= 0; i--) {
+      const tg = this.telegraphs[i];
+      tg.chargeTime -= dt;
+      if (tg.chargeTime <= 0) {
+        if (tg.onExecute) tg.onExecute();
+        this.telegraphs.splice(i, 1);
       }
     }
 
@@ -826,19 +918,63 @@ export class GameEngine {
           }
         } else if (m.isBoss) {
           m.cooldownTimer -= dt;
+          m.slamTimer = (m.slamTimer || 3.5) - dt;
 
           if (distToPlayer > 45) {
             m.vx += Math.cos(angle) * m.speed;
             m.vy += Math.sin(angle) * m.speed;
           }
 
+          // Boss Skill 1: Ground Slam AoE Danger Telegraph
+          if (m.slamTimer <= 0) {
+            m.slamTimer = m.isEnraged ? 3.4 : 5.0;
+            const tx = this.player.x;
+            const ty = this.player.y;
+            const slamRadius = m.isEnraged ? 105 : 90;
+            this.addFloatingText(m.x, m.y - m.radius - 18, '⚡ GEMPA PENGHANCUR!', '#ef4444', 15);
+
+            this.telegraphs.push({
+              id: `slam_${Date.now()}`,
+              x: tx,
+              y: ty,
+              radius: slamRadius,
+              chargeTime: 1.15,
+              maxTime: 1.15,
+              label: 'AWAS GEMPA!',
+              onExecute: () => {
+                sound.playBossRoar();
+                this.triggerScreenShake(0.35, 14);
+                this.createShockwave(tx, ty, slamRadius, '#ef4444');
+                this.createDeathExplosion(tx, ty, '#f97316', 32);
+
+                // Scorch crater decal
+                if (this.floorDecals.length < 120) {
+                  this.floorDecals.push({
+                    x: tx,
+                    y: ty,
+                    radius: slamRadius * 0.65,
+                    color: '#450a0a',
+                    alpha: 0.7,
+                    life: 18.0
+                  });
+                }
+
+                // Blast hit detection
+                const distToBlast = Math.hypot(this.player.x - tx, this.player.y - ty);
+                if (distToBlast <= slamRadius + this.player.radius && this.player.invulnerableTimer <= 0) {
+                  this.damagePlayer(Math.round(m.attack * 1.5), m);
+                }
+              }
+            });
+          }
+
+          // Boss Skill 2: Nova Chaos Barrage (8 or 12 orbs when enraged)
           if (m.cooldownTimer <= 0) {
-            m.cooldownTimer = m.attackCooldown;
+            m.cooldownTimer = m.isEnraged ? m.attackCooldown * 0.75 : m.attackCooldown;
             sound.playBossRoar();
             this.triggerScreenShake(0.3, 10);
 
-            // Boss Nova Attack (8 orbs)
-            const orbs = 8;
+            const orbs = m.isEnraged ? 12 : 8;
             for (let i = 0; i < orbs; i++) {
               const bAngle = angle + (Math.PI * 2 / orbs) * i;
               this.projectiles.push({
@@ -849,15 +985,46 @@ export class GameEngine {
                 radius: 8,
                 damage: m.attack * 0.9,
                 fromPlayer: false,
-                color: m.color,
+                color: m.isEnraged ? '#ef4444' : m.color,
                 life: 1.8
               });
             }
           }
         } else {
+          // Regular Mobs & Elite Champions
           if (distToPlayer > 28) {
             m.vx += Math.cos(angle) * m.speed;
             m.vy += Math.sin(angle) * m.speed;
+          }
+
+          // Elite Affix 1: Molten Lava Trail
+          if (m.isElite && m.affix === 'Molten') {
+            m.affixTimer = (m.affixTimer || 0) + dt;
+            if (m.affixTimer >= 0.48 && this.moltenPools.length < 40) {
+              m.affixTimer = 0;
+              this.moltenPools.push({
+                x: m.x,
+                y: m.y,
+                radius: 16,
+                life: 3.2,
+                damage: Math.round(m.attack * 0.35)
+              });
+            }
+          }
+
+          // Elite Affix 2: Shadow Blink (Teleport Behind Player)
+          if (m.isElite && m.affix === 'Blink') {
+            m.affixTimer = (m.affixTimer || 0) + dt;
+            if (m.affixTimer >= 3.8 && distToPlayer > 55 && distToPlayer < 280) {
+              m.affixTimer = 0;
+              this.createDeathExplosion(m.x, m.y, '#a855f7', 16);
+              const pAngle = this.player.facingAngle;
+              m.x = this.player.x - Math.cos(pAngle) * 38;
+              m.y = this.player.y - Math.sin(pAngle) * 38;
+              this.createAuraParticles(m.x, m.y, '#c084fc', 12);
+              this.addFloatingText(m.x, m.y - m.radius - 12, '💨 BLINK!', '#c084fc', 13);
+              sound.playSkillCast();
+            }
           }
 
           m.cooldownTimer -= dt;
@@ -1046,6 +1213,12 @@ export class GameEngine {
       ctx.fill();
       ctx.restore();
     }
+
+    // Molten Lava Puddles (Floor Hazard)
+    SpriteRenderer.drawMoltenEmbers(ctx, this.moltenPools, this.gameTime);
+
+    // Danger AoE Telegraphs (Red Warning Circles)
+    SpriteRenderer.drawTelegraphs(ctx, this.telegraphs, this.gameTime);
 
     // 2. Draw Torches
     for (const torch of this.dungeon.torches) {

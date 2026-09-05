@@ -288,6 +288,47 @@ export class SpriteRenderer {
     ctx.ellipse(0, m.radius * 0.75, m.radius * 0.9, m.radius * 0.4, 0, 0, Math.PI * 2);
     ctx.fill();
 
+    // Elite Champion Aura Ring
+    if (m.isElite) {
+      ctx.save();
+      const auraPulse = Math.sin(time * 6) * 3;
+      if (m.affix === 'Molten') {
+        ctx.strokeStyle = 'rgba(249, 115, 22, 0.85)';
+        ctx.fillStyle = 'rgba(234, 88, 12, 0.2)';
+      } else if (m.affix === 'Vampiric') {
+        ctx.strokeStyle = 'rgba(220, 38, 38, 0.85)';
+        ctx.fillStyle = 'rgba(153, 27, 27, 0.25)';
+      } else if (m.affix === 'Blink') {
+        ctx.strokeStyle = 'rgba(168, 85, 247, 0.85)';
+        ctx.fillStyle = 'rgba(126, 34, 206, 0.2)';
+      } else { // Ironhide
+        ctx.strokeStyle = 'rgba(56, 189, 248, 0.85)';
+        ctx.fillStyle = 'rgba(14, 116, 144, 0.2)';
+      }
+      ctx.lineWidth = 2.5;
+      ctx.setLineDash([5, 4]);
+      ctx.beginPath();
+      ctx.arc(0, 0, m.radius + 6 + auraPulse, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+    }
+
+    // Boss Enrage Blazing Aura
+    if (m.isBoss && m.isEnraged) {
+      ctx.save();
+      const enragePulse = Math.sin(time * 12) * 5;
+      ctx.strokeStyle = '#ef4444';
+      ctx.lineWidth = 3.5;
+      ctx.fillStyle = 'rgba(239, 68, 68, 0.25)';
+      ctx.beginPath();
+      ctx.arc(0, 0, m.radius + 10 + enragePulse, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+    }
+
     const isHit = m.flashTimer > 0;
 
     if (m.type === 'slime') {
@@ -518,29 +559,37 @@ export class SpriteRenderer {
 
     // Health Bar & Name Display
     const barW = Math.max(32, m.radius * 2.2);
-    const barH = m.isBoss ? 6 : 4;
-    const barY = -m.radius - (m.isBoss ? 22 : 12);
+    const barH = m.isBoss ? 7 : 4;
+    const barY = -m.radius - (m.isBoss ? 26 : m.isElite ? 18 : 12);
     const hpPct = Math.max(0, m.hp / m.maxHp);
 
     if (m.isBoss) {
       ctx.font = "bold 11px 'Cinzel', serif";
-      ctx.fillStyle = '#facc15';
+      ctx.fillStyle = m.isEnraged ? '#ef4444' : '#facc15';
       ctx.textAlign = 'center';
       ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
-      ctx.shadowBlur = 4;
-      ctx.fillText(`👑 ${m.name}`, 0, barY - 6);
+      ctx.shadowBlur = 5;
+      ctx.fillText(m.isEnraged ? `🔥 [ENRAGED] ${m.name}` : `👑 ${m.name}`, 0, barY - 6);
+      ctx.shadowBlur = 0;
+    } else if (m.isElite) {
+      ctx.font = "bold 9px 'Cinzel', serif";
+      ctx.fillStyle = m.affix === 'Molten' ? '#f97316' : m.affix === 'Vampiric' ? '#f43f5e' : m.affix === 'Blink' ? '#c084fc' : '#38bdf8';
+      ctx.textAlign = 'center';
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
+      ctx.shadowBlur = 3;
+      ctx.fillText(`★ [${m.affix}]`, 0, barY - 4);
       ctx.shadowBlur = 0;
     }
 
     // HP Bar background
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
     ctx.fillRect(-barW / 2, barY, barW, barH);
-    ctx.strokeStyle = '#0f172a';
+    ctx.strokeStyle = m.isElite ? '#facc15' : '#0f172a';
     ctx.lineWidth = 1;
     ctx.strokeRect(-barW / 2, barY, barW, barH);
 
     // HP Bar fill
-    ctx.fillStyle = m.isBoss ? '#c084fc' : '#ef4444';
+    ctx.fillStyle = m.isBoss ? (m.isEnraged ? '#dc2626' : '#c084fc') : m.isElite ? '#f59e0b' : '#ef4444';
     ctx.fillRect(-barW / 2, barY, barW * hpPct, barH);
 
     ctx.restore();
@@ -624,4 +673,68 @@ export class SpriteRenderer {
 
     ctx.restore();
   }
+
+  // Draw Boss & Elite AoE Danger Telegraphs (Pulsing Red Warning Zones)
+  static drawTelegraphs(ctx, telegraphs, time) {
+    for (const tg of telegraphs) {
+      ctx.save();
+      const progress = Math.min(1, Math.max(0, 1 - (tg.chargeTime / tg.maxTime)));
+      const pulse = Math.sin(time * 10) * 0.08;
+
+      // Base Warning Area (Translucent Red with breathing opacity)
+      ctx.fillStyle = `rgba(239, 68, 68, ${0.22 + pulse})`;
+      ctx.beginPath();
+      ctx.arc(tg.x, tg.y, tg.radius, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Expanding Inner Danger Ring
+      ctx.fillStyle = 'rgba(239, 68, 68, 0.38)';
+      ctx.beginPath();
+      ctx.arc(tg.x, tg.y, tg.radius * progress, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Danger Dashed Rotating Perimeter
+      ctx.strokeStyle = '#f87171';
+      ctx.lineWidth = 2.5;
+      ctx.setLineDash([8, 6]);
+      ctx.lineDashOffset = -time * 28;
+      ctx.beginPath();
+      ctx.arc(tg.x, tg.y, tg.radius, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Central Warning Sign & Label
+      ctx.font = "bold 13px sans-serif";
+      ctx.fillStyle = '#fef08a';
+      ctx.textAlign = 'center';
+      ctx.fillText('⚠️', tg.x, tg.y - 4);
+
+      if (tg.label) {
+        ctx.font = "bold 10px 'Cinzel', serif";
+        ctx.fillStyle = '#fca5a5';
+        ctx.fillText(tg.label, tg.x, tg.y + 14);
+      }
+
+      ctx.restore();
+    }
+  }
+
+  // Draw Molten Lava Puddles left by Molten Elites
+  static drawMoltenEmbers(ctx, moltenPools, time) {
+    for (const p of moltenPools) {
+      ctx.save();
+      ctx.globalAlpha = Math.min(0.85, p.life / 0.8);
+      const emberGrad = ctx.createRadialGradient(p.x, p.y, 2, p.x, p.y, p.radius);
+      emberGrad.addColorStop(0, '#fef08a');
+      emberGrad.addColorStop(0.4, '#f97316');
+      emberGrad.addColorStop(0.8, '#dc2626');
+      emberGrad.addColorStop(1, 'rgba(127, 29, 29, 0)');
+
+      ctx.fillStyle = emberGrad;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.radius + Math.sin(time * 8 + p.x) * 2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
 }
+

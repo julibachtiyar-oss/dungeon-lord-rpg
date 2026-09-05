@@ -105,36 +105,53 @@ export function generateDungeon({ floorConfig, mapWidth = 2400, mapHeight = 1800
           gemReward: bossDef.gemReward
         });
       } else {
-        // Spawn Normal Mob pack
+        // Spawn Normal Mob pack with ~30% Elite Champions
         const count = 3 + floorConfig.floorNumber;
+        const AFFIXES = ['Molten', 'Vampiric', 'Blink', 'Ironhide'];
+
         for (let m = 0; m < count; m++) {
           const pool = floorConfig.monsterPool;
           const typeKey = pool[Math.floor(Math.random() * pool.length)];
           const mobDef = MONSTER_TYPES[typeKey];
 
+          // 30% chance for Elite Champion in rooms > 0
+          const isElite = Math.random() < 0.32;
+          const affix = isElite ? AFFIXES[Math.floor(Math.random() * AFFIXES.length)] : null;
+
+          const hpMult = isElite ? 1.65 : 1.0;
+          const atkMult = isElite ? 1.3 : 1.0;
+          const xpMult = isElite ? 2.2 : 1.0;
+          const goldMult = isElite ? 2.5 : 1.0;
+
           monsters.push({
-            id: `mob_${i}_${m}_${Date.now()}`,
+            id: `mob_${i}_${m}_${Date.now()}_${Math.random()}`,
             type: typeKey,
-            name: mobDef.name,
+            name: isElite ? `★ ${affix} ${mobDef.name}` : mobDef.name,
             isBoss: false,
+            isElite: isElite,
+            affix: affix,
+            affixTimer: 0,
             x: rx + 50 + Math.random() * (size.w - 100),
             y: ry + 50 + Math.random() * (size.h - 100),
-            radius: mobDef.radius,
-            maxHp: mobDef.maxHp,
-            hp: mobDef.maxHp,
-            attack: mobDef.attack,
-            defense: mobDef.defense,
+            radius: isElite ? Math.round(mobDef.radius * 1.25) : mobDef.radius,
+            maxHp: Math.round(mobDef.maxHp * hpMult),
+            hp: Math.round(mobDef.maxHp * hpMult),
+            attack: Math.round(mobDef.attack * atkMult),
+            defense: isElite ? mobDef.defense + 4 : mobDef.defense,
             speed: mobDef.speed,
             color: mobDef.color,
-            glowColor: mobDef.glowColor,
+            glowColor: isElite ? '#fbbf24' : mobDef.glowColor,
             behavior: mobDef.behavior,
             attackCooldown: mobDef.attackCooldown,
             cooldownTimer: Math.random() * mobDef.attackCooldown,
             vx: 0,
             vy: 0,
             roomIndex: i,
-            xpReward: mobDef.xpReward,
-            goldReward: mobDef.goldReward
+            xpReward: Math.round(mobDef.xpReward * xpMult),
+            goldReward: [
+              Math.round(mobDef.goldReward[0] * goldMult),
+              Math.round(mobDef.goldReward[1] * goldMult)
+            ]
           });
         }
       }
