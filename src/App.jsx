@@ -30,6 +30,7 @@ import BossHealthBar from './components/BossHealthBar';
 import InstallPwaPrompt from './components/InstallPwaPrompt';
 import TitleScreen from './components/TitleScreen';
 import StoryDialogueModal from './components/StoryDialogueModal';
+import AudioSettingsModal from './components/AudioSettingsModal';
 import { DUNGEON_FLOORS } from './constants/rooms';
 import { sound } from './engine/soundEngine';
 
@@ -65,6 +66,7 @@ export default function App() {
   const [isClassSelectOpen, setIsClassSelectOpen] = useState(false);
   const [isFloorSelectOpen, setIsFloorSelectOpen] = useState(false);
   const [isTalentTreeOpen, setIsTalentTreeOpen] = useState(false);
+  const [isAudioSettingsOpen, setIsAudioSettingsOpen] = useState(false);
   const [soundMuted, setSoundMuted] = useState(false);
 
   // Story Dialogue State
@@ -250,6 +252,7 @@ export default function App() {
           onOpenInventory={() => setIsInventoryOpen(true)}
           onOpenClassSelect={() => setIsClassSelectOpen(true)}
           onOpenTalentTree={() => setIsTalentTreeOpen(true)}
+          onOpenAudioSettings={() => setIsAudioSettingsOpen(true)}
           onUpdateGrid={updateGrid}
           onAddSanctuaryRewards={addSanctuaryRewards}
           onAddLoot={addLootItem}
@@ -548,7 +551,13 @@ export default function App() {
         onResetTalents={resetTalents}
       />
 
-      {/* 11. PWA Install Prompt */}
+      {/* 11. Audio & Haptics Settings Modal */}
+      <AudioSettingsModal
+        isOpen={isAudioSettingsOpen}
+        onClose={() => setIsAudioSettingsOpen(false)}
+      />
+
+      {/* 12. PWA Install Prompt */}
       <InstallPwaPrompt />
     </div>
   );

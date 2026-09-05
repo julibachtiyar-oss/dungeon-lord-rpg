@@ -13,7 +13,8 @@ import {
   Swords,
   Map,
   ListFilter,
-  Award
+  Award,
+  Volume2
 } from 'lucide-react';
 import { DUNGEON_ROOMS_TEMPLATE } from '../constants/rooms';
 import { HERO_CLASSES } from '../constants/classes';
@@ -29,6 +30,7 @@ export default function DungeonManagement({
   onOpenInventory,
   onOpenClassSelect,
   onOpenTalentTree,
+  onOpenAudioSettings,
   onUpdateGrid,
   onAddSanctuaryRewards,
   onAddLoot
@@ -101,6 +103,15 @@ export default function DungeonManagement({
             <Sparkles size={14} className="text-purple-400" />
             <span>{gems}</span>
           </div>
+          {onOpenAudioSettings && (
+            <button
+              onClick={onOpenAudioSettings}
+              className="w-7 h-7 rounded-full bg-dungeon-850 border border-dungeon-700 hover:border-gold-500/60 text-slate-300 hover:text-white flex items-center justify-center active:scale-95 shadow-md transition-all"
+              title="Pengaturan Suara & Audio"
+            >
+              <Volume2 size={13} />
+            </button>
+          )}
         </div>
       </div>
 
