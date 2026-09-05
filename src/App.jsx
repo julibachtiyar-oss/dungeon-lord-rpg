@@ -53,7 +53,9 @@ export default function App() {
     markPrologueSeen,
     resetGame,
     learnTalent,
-    resetTalents
+    resetTalents,
+    enhanceEquipment,
+    socketGem
   } = useGameState();
 
   // Screens: 'title' | 'sanctuary' | 'adventure'
@@ -514,6 +516,8 @@ export default function App() {
         onSelectMercenary={selectMercenary}
         gold={gameState.gold}
         gems={gameState.gems}
+        onEnhanceItem={enhanceEquipment}
+        onSocketGem={socketGem}
       />
 
       {/* 8. Class Select Modal */}

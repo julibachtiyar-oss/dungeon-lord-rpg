@@ -69,7 +69,8 @@ export class GameEngine {
       frenzyTimer: 0,
       kills: 0,
       goldEarned: 0,
-      gemsEarned: 0
+      gemsEarned: 0,
+      weaponEnhancement: playerStats.weaponEnhancement || 0
     };
 
     // Mercenary Party Companion
@@ -318,20 +319,21 @@ export class GameEngine {
     this.createAuraParticles(this.player.x, this.player.y, '#ffffff', 18);
   }
 
+  // Quick Potion Consumption (Health or Mana)
   usePotion(type = 'health') {
     if (this.player.hp <= 0) return;
-    sound.playHeal();
-
     if (type === 'health') {
-      const heal = 120;
-      this.player.hp = Math.min(this.player.maxHp, this.player.hp + heal);
-      this.addFloatingText(this.player.x, this.player.y - 25, `+${heal} HP`, '#22c55e', 16);
+      const healAmount = Math.round(this.player.maxHp * 0.45);
+      this.player.hp = Math.min(this.player.maxHp, this.player.hp + healAmount);
+      sound.playLevelUp();
       this.createAuraParticles(this.player.x, this.player.y, '#22c55e', 22);
-    } else {
-      const mana = 90;
-      this.player.mp = Math.min(this.player.maxMp, this.player.mp + mana);
-      this.addFloatingText(this.player.x, this.player.y - 25, `+${mana} MP`, '#38bdf8', 16);
+      this.addFloatingText(this.player.x, this.player.y - 35, `+${healAmount} HP`, '#22c55e', 18);
+    } else if (type === 'mana') {
+      const manaAmount = Math.round(this.player.maxMp * 0.60);
+      this.player.mp = Math.min(this.player.maxMp, this.player.mp + manaAmount);
+      sound.playSkillCast();
       this.createAuraParticles(this.player.x, this.player.y, '#38bdf8', 22);
+      this.addFloatingText(this.player.x, this.player.y - 35, `+${manaAmount} MP`, '#38bdf8', 18);
     }
   }
 

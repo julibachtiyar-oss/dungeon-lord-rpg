@@ -114,37 +114,35 @@ export function useGameState() {
     let crit = base.critChance;
 
     const eq = gameState.equipment;
-    if (eq.weapon) {
-      atk += eq.weapon.attack || 0;
-      crit += eq.weapon.critBonus || 0;
-      speed += eq.weapon.speedBonus || 0;
-    }
-    if (eq.shield) {
-      def += eq.shield.defense || 0;
-      maxHp += eq.shield.hpBonus || 0;
-    }
-    if (eq.helmet) {
-      def += eq.helmet.defense || 0;
-      maxHp += eq.helmet.hpBonus || 0;
-      crit += eq.helmet.critBonus || 0;
-    }
-    if (eq.armor) {
-      def += eq.armor.defense || 0;
-      maxHp += eq.armor.hpBonus || 0;
-    }
-    if (eq.boots) {
-      def += eq.boots.defense || 0;
-      speed += eq.boots.speedBonus || 0;
-    }
-    if (eq.amulet) {
-      maxHp += eq.amulet.hpBonus || 0;
-      maxMp += eq.amulet.mpBonus || 0;
-      crit += eq.amulet.critBonus || 0;
-    }
-    if (eq.ring) {
-      maxHp += eq.ring.hpBonus || 0;
-      atk += eq.ring.attack || 0;
-      crit += eq.ring.critBonus || 0;
+    const processSlot = (item) => {
+      if (!item) return { atk: 0, def: 0, hp: 0, mp: 0, crit: 0, spd: 0 };
+      const enhMult = 1 + (item.enhancement || 0) * 0.12;
+      let slotAtk = (item.attack || 0) * enhMult;
+      let slotDef = (item.defense || 0) * enhMult;
+      let slotHp = (item.hpBonus || 0) * enhMult;
+      let slotMp = (item.mpBonus || 0) * enhMult;
+      let slotCrit = (item.critBonus || 0);
+      let slotSpd = (item.speedBonus || 0);
+
+      // Gem socket bonuses
+      if (item.sockets && Array.isArray(item.sockets)) {
+        for (const g of item.sockets) {
+          if (g === 'ruby') slotAtk += 16;
+          else if (g === 'sapphire') { slotHp += 110; slotDef += 6; }
+          else if (g === 'emerald') { slotCrit += 0.08; slotSpd += 0.12; }
+        }
+      }
+      return { atk: slotAtk, def: slotDef, hp: slotHp, mp: slotMp, crit: slotCrit, spd: slotSpd };
+    };
+
+    for (const key of ['weapon', 'shield', 'helmet', 'armor', 'boots', 'amulet', 'ring']) {
+      const s = processSlot(eq[key]);
+      atk += s.atk;
+      def += s.def;
+      maxHp += s.hp;
+      maxMp += s.mp;
+      crit += s.crit;
+      speed += s.spd;
     }
 
     // Talent tree passive perks
@@ -178,7 +176,8 @@ export function useGameState() {
       maxHp,
       maxMp,
       speed,
-      critChance: Math.min(0.90, crit)
+      critChance: Math.min(0.90, crit),
+      weaponEnhancement: eq.weapon?.enhancement || 0
     };
   }, [heroClass, gameState.equipment, gameState.gridState, gameState.heroLevel, gameState.talents, gameState.heroClassId]);
 
@@ -340,6 +339,80 @@ export function useGameState() {
     return true;
   }, [gameState.potionsCount]);
 
+  const enhanceEquipment = useCallback((slot) => {
+    let result = { success: false, msg: '' };
+    setGameState(prev => {
+      const item = prev.equipment[slot];
+      if (!item) return prev;
+      const curEnhance = item.enhancement || 0;
+      if (curEnhance >= 10) {
+        result = { success: false, msg: 'Tingkat maksimal +10 tercapai!' };
+        return prev;
+      }
+
+      const goldCost = (curEnhance + 1) * 75;
+      const gemCost = curEnhance >= 6 ? 2 : (curEnhance >= 3 ? 1 : 0);
+
+      if (prev.gold < goldCost || prev.gems < gemCost) {
+        result = { success: false, msg: 'Gold atau Gems tidak mencukupi!' };
+        return prev;
+      }
+
+      // Success chances: +1..+3: 100%, +4..+6: 80%, +7..+8: 60%, +9..+10: 40%
+      const successChance = curEnhance < 3 ? 1.0 : curEnhance < 6 ? 0.8 : curEnhance < 8 ? 0.6 : 0.4;
+      const isSuccess = Math.random() <= successChance;
+
+      if (isSuccess) {
+        sound.playLevelUp();
+        result = { success: true, newLevel: curEnhance + 1, msg: `Sukses Menempa! Menjadi +${curEnhance + 1}!` };
+        return {
+          ...prev,
+          gold: prev.gold - goldCost,
+          gems: prev.gems - gemCost,
+          equipment: {
+            ...prev.equipment,
+            [slot]: {
+              ...item,
+              enhancement: curEnhance + 1
+            }
+          }
+        };
+      } else {
+        sound.playAttackMelee();
+        result = { success: false, newLevel: curEnhance, msg: 'Tempaan gagal! Beruntung perlengkapan utuh.' };
+        return {
+          ...prev,
+          gold: prev.gold - goldCost,
+          gems: prev.gems - gemCost
+        };
+      }
+    });
+    return result;
+  }, []);
+
+  const socketGem = useCallback((slot, socketIndex, gemType) => {
+    setGameState(prev => {
+      const item = prev.equipment[slot];
+      if (!item || prev.gems < 1) return prev;
+
+      const curSockets = item.sockets ? [...item.sockets] : [null, null];
+      curSockets[socketIndex] = gemType;
+      sound.playEquipItem();
+
+      return {
+        ...prev,
+        gems: prev.gems - 1,
+        equipment: {
+          ...prev.equipment,
+          [slot]: {
+            ...item,
+            sockets: curSockets
+          }
+        }
+      };
+    });
+  }, []);
+
   const markPrologueSeen = useCallback(() => {
     setGameState(prev => ({
       ...prev,
@@ -371,6 +444,8 @@ export function useGameState() {
     markPrologueSeen,
     resetGame,
     learnTalent,
-    resetTalents
+    resetTalents,
+    enhanceEquipment,
+    socketGem
   };
 }

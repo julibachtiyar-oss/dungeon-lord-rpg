@@ -244,6 +244,26 @@ export class SpriteRenderer {
       ctx.stroke();
     }
 
+    // Weapon Enhancement Glow Aura (+3 Green, +6 Purple, +9/+10 Radiant Gold)
+    const wepEnhance = player.weaponEnhancement || 0;
+    if (wepEnhance >= 3) {
+      ctx.save();
+      const auraPulse = Math.sin(time * 8) * 2;
+      let auraColor = '#22c55e'; // +3 to +5 Emerald Green
+      if (wepEnhance >= 9) auraColor = '#facc15'; // +9/+10 Radiant Godly Gold
+      else if (wepEnhance >= 6) auraColor = '#c084fc'; // +6 to +8 Nether Arcane Purple
+
+      ctx.shadowColor = auraColor;
+      ctx.shadowBlur = 12 + wepEnhance;
+      ctx.strokeStyle = auraColor;
+      ctx.lineWidth = 2 + (wepEnhance >= 9 ? 1.5 : 0.8);
+      ctx.beginPath();
+      ctx.arc(24, 0, 14 + auraPulse, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.restore();
+    }
+
     // 7. Energy Blade Crescent Slash Wave (During Attack)
     if (player.isAttacking) {
       const slashGrad = ctx.createRadialGradient(0, 0, 18, 0, 0, 48);
