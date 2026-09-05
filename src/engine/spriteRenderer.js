@@ -588,6 +588,40 @@ export class SpriteRenderer {
     ctx.fillStyle = '#22c55e';
     ctx.fillRect(-14, -15, 28 * Math.max(0, merc.hp / merc.maxHp), 3.5);
 
+    // Comic Battle Shout Speech Bubble
+    if (merc.speechBubble) {
+      ctx.save();
+      ctx.font = "bold 9px 'Plus Jakarta Sans', sans-serif";
+      const txtW = ctx.measureText(merc.speechBubble).width;
+      const bubbleW = txtW + 12;
+      const bubbleH = 16;
+      const bubbleY = -38;
+
+      ctx.fillStyle = '#ffffff';
+      ctx.strokeStyle = '#0f172a';
+      ctx.lineWidth = 1.5;
+
+      // Rounded bubble body
+      ctx.beginPath();
+      ctx.roundRect(-bubbleW / 2, bubbleY, bubbleW, bubbleH, 5);
+      ctx.fill();
+      ctx.stroke();
+
+      // Tail
+      ctx.beginPath();
+      ctx.moveTo(-3, bubbleY + bubbleH);
+      ctx.lineTo(0, bubbleY + bubbleH + 4);
+      ctx.lineTo(3, bubbleY + bubbleH);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#0f172a';
+      ctx.textAlign = 'center';
+      ctx.fillText(merc.speechBubble, 0, bubbleY + 11);
+      ctx.restore();
+    }
+
     ctx.restore();
   }
 }

@@ -42,7 +42,25 @@ export default function DungeonSanctuaryMap({
     Zap,
     Hammer,
     FlaskConical,
-    DoorOpen
+    DoorOpen,
+    ShieldAlert,
+    Sparkles
+  };
+
+  const handleDemolishFacility = () => {
+    if (selectedCellIdx === null) return;
+    const current = BUILDING_TYPES[gridState[selectedCellIdx]];
+    if (!current || current.fixed || current.id === 'empty') return;
+
+    sound.playAttackMelee();
+    const refund = Math.floor((current.costGold || 0) * 0.5);
+    if (refund > 0 && onAddRewards) {
+      onAddRewards(refund, 0);
+    }
+    const nextGrid = [...gridState];
+    nextGrid[selectedCellIdx] = 'empty';
+    onUpdateGrid(nextGrid, 0, 0);
+    setSelectedCellIdx(null);
   };
 
   // Find Portal cell index and Core cell index
@@ -154,8 +172,41 @@ export default function DungeonSanctuaryMap({
           else if (currRow < targetRow) nextRow++;
           else if (currRow > targetRow) nextRow--;
 
-          const nextCell = nextRow * GRID_COLS + nextCol;
+          let nextCell = nextRow * GRID_COLS + nextCol;
+
+          // Wall Obstacle Collision Avoidance: if target is a wall, try bypass
+          if (gridState[nextCell] === 'wall') {
+            if (currRow < targetRow && gridState[(currRow + 1) * GRID_COLS + currCol] !== 'wall') {
+              nextRow = currRow + 1;
+              nextCol = currCol;
+            } else if (currCol < targetCol && gridState[currRow * GRID_COLS + (currCol + 1)] !== 'wall') {
+              nextCol = currCol + 1;
+              nextRow = currRow;
+            } else if (currCol > 0 && gridState[currRow * GRID_COLS + (currCol - 1)] !== 'wall') {
+              nextCol = currCol - 1;
+              nextRow = currRow;
+            } else {
+              nextRow = currRow;
+              nextCol = currCol;
+            }
+            nextCell = nextRow * GRID_COLS + nextCol;
+          }
+
           currentCell = nextCell;
+
+          // Check Torture Chamber Debuff
+          if (gridState[currentCell] === 'torture') {
+            inv.attack = Math.max(5, Math.round(inv.attack * 0.65));
+            setCombatEffects(prev => [
+              ...prev,
+              {
+                id: `fx_${Date.now()}_${Math.random()}`,
+                cellIdx: currentCell,
+                text: `TORMENT! -35% ATK`,
+                color: '#c084fc'
+              }
+            ]);
+          }
 
           // 2. Check Trap on this cell
           const building = BUILDING_TYPES[gridState[currentCell]];
@@ -341,14 +392,36 @@ export default function DungeonSanctuaryMap({
                 }}
               >
                 {/* Building Icon / Tile */}
-                {building.id !== 'empty' && (
+                {building.id === 'vault' ? (
+                  <div className="flex flex-col items-center justify-center">
+                    <div className="flex items-center gap-0.5 text-xs">
+                      <span className="animate-bounce text-[11px]">⛏️</span>
+                      <span className="text-[11px]">👺</span>
+                    </div>
+                    <span className="text-[7px] font-black text-gold-400 font-mono leading-none mt-0.5">+4G/s</span>
+                  </div>
+                ) : building.id === 'wall' ? (
+                  <div className="w-full h-full flex items-center justify-center bg-slate-800/90 rounded-lg border border-slate-600/80 shadow-inner">
+                    <span className="text-xs">🧱</span>
+                  </div>
+                ) : building.id === 'torture' ? (
+                  <div className="flex flex-col items-center justify-center">
+                    <span className="text-xs">⛓️💀</span>
+                    <span className="text-[7px] font-black text-purple-400 font-fantasy leading-none mt-0.5">SIKSA</span>
+                  </div>
+                ) : building.id === 'library' ? (
+                  <div className="flex flex-col items-center justify-center">
+                    <span className="text-xs animate-pulse">📜✨</span>
+                    <span className="text-[7px] font-black text-cyan-400 font-fantasy leading-none mt-0.5">EXP+</span>
+                  </div>
+                ) : building.id !== 'empty' ? (
                   <div
                     className="flex items-center justify-center"
                     style={{ color: building.color }}
                   >
                     <Icon size={18} />
                   </div>
-                )}
+                ) : null}
 
                 {/* Facility name on special cells */}
                 {building.id === 'portal' && (
@@ -481,6 +554,17 @@ export default function DungeonSanctuaryMap({
                     );
                   })}
               </div>
+
+              {/* Demolish / Sell Facility Option */}
+              {selectedBuilding.id !== 'empty' && (
+                <button
+                  onClick={handleDemolishFacility}
+                  className="w-full mt-2 py-2 px-3 rounded-xl bg-blood-900/60 hover:bg-blood-800 border border-blood-600/70 text-blood-200 text-xs font-bold flex items-center justify-center gap-1.5 transition-all active:scale-95 shadow-md"
+                >
+                  <X size={14} className="text-blood-400" />
+                  <span>Hancurkan Fasilitas (Refund +{Math.floor((selectedBuilding.costGold || 0) * 0.5)} Gold)</span>
+                </button>
+              )}
             </div>
           )}
         </div>

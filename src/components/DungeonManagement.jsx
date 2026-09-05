@@ -12,7 +12,8 @@ import {
   ShieldAlert,
   Swords,
   Map,
-  ListFilter
+  ListFilter,
+  Award
 } from 'lucide-react';
 import { DUNGEON_ROOMS_TEMPLATE } from '../constants/rooms';
 import { HERO_CLASSES } from '../constants/classes';
@@ -27,6 +28,7 @@ export default function DungeonManagement({
   onStartAdventure,
   onOpenInventory,
   onOpenClassSelect,
+  onOpenTalentTree,
   onUpdateGrid,
   onAddSanctuaryRewards,
   onAddLoot
@@ -129,31 +131,49 @@ export default function DungeonManagement({
           </button>
         </div>
 
-        {/* Hero Quick Navigation Card */}
-        <div className="grid grid-cols-2 gap-3">
+        {/* Hero Quick Navigation Cards */}
+        <div className="grid grid-cols-3 gap-2">
           <button
             onClick={onOpenInventory}
-            className="p-3 rounded-2xl bg-dungeon-850 border border-dungeon-700/70 hover:border-slate-500 active:scale-98 transition-all flex items-center gap-3 text-left"
+            className="p-2.5 rounded-2xl bg-dungeon-850 border border-dungeon-700/70 hover:border-slate-500 active:scale-98 transition-all flex flex-col items-center text-center gap-1.5 shadow-md"
           >
-            <div className="w-10 h-10 rounded-xl bg-blood-600/20 border border-blood-500/40 flex items-center justify-center text-blood-400">
-              <Hammer size={20} />
+            <div className="w-8 h-8 rounded-xl bg-blood-600/20 border border-blood-500/40 flex items-center justify-center text-blood-400">
+              <Hammer size={16} />
             </div>
             <div>
-              <span className="text-xs font-bold text-white block">Tas & Party Minion</span>
-              <span className="text-[10px] text-slate-400">Paperdoll 7 Slot & Rekan</span>
+              <span className="text-[11px] font-bold text-white block leading-tight">Tas & Party</span>
+              <span className="text-[9px] text-slate-400">7 Slot</span>
+            </div>
+          </button>
+
+          <button
+            onClick={onOpenTalentTree}
+            className="p-2.5 rounded-2xl bg-dungeon-850 border border-gold-500/40 hover:border-gold-400 active:scale-98 transition-all flex flex-col items-center text-center gap-1.5 relative shadow-md shadow-gold-500/10"
+          >
+            {(gameState.talentPoints || 0) > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 bg-gradient-to-r from-amber-500 to-yellow-400 text-black text-[9px] font-black w-5 h-5 rounded-full flex items-center justify-center shadow-md animate-bounce border border-yellow-200">
+                {gameState.talentPoints}
+              </span>
+            )}
+            <div className="w-8 h-8 rounded-xl bg-gold-600/20 border border-gold-500/40 flex items-center justify-center text-gold-400">
+              <Award size={16} />
+            </div>
+            <div>
+              <span className="text-[11px] font-bold text-gold-300 block leading-tight">Pohon Bakat</span>
+              <span className="text-[9px] text-slate-400">3 Cabang</span>
             </div>
           </button>
 
           <button
             onClick={onOpenClassSelect}
-            className="p-3 rounded-2xl bg-dungeon-850 border border-dungeon-700/70 hover:border-slate-500 active:scale-98 transition-all flex items-center gap-3 text-left"
+            className="p-2.5 rounded-2xl bg-dungeon-850 border border-dungeon-700/70 hover:border-slate-500 active:scale-98 transition-all flex flex-col items-center text-center gap-1.5 shadow-md"
           >
-            <div className="w-10 h-10 rounded-xl bg-indigo-600/20 border border-indigo-500/40 flex items-center justify-center text-indigo-400">
-              <Crown size={20} />
+            <div className="w-8 h-8 rounded-xl bg-indigo-600/20 border border-indigo-500/40 flex items-center justify-center text-indigo-400">
+              <Crown size={16} />
             </div>
             <div>
-              <span className="text-xs font-bold text-white block">Ganti Kelas Hero</span>
-              <span className="text-[10px] text-slate-400">Black Knight / Mage / Rogue</span>
+              <span className="text-[11px] font-bold text-white block leading-tight">Ganti Kelas</span>
+              <span className="text-[9px] text-slate-400">3 Class</span>
             </div>
           </button>
         </div>

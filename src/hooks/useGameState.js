@@ -4,6 +4,7 @@ import { INITIAL_EQUIPMENT } from '../constants/items';
 import { DUNGEON_ROOMS_TEMPLATE } from '../constants/rooms';
 import { INITIAL_SANCTUARY_GRID, BUILDING_TYPES } from '../constants/dungeonSanctuary';
 import { MERCENARIES } from '../constants/mercenaries';
+import { CLASS_TALENT_TREES } from '../constants/talents';
 import { sound } from '../engine/soundEngine';
 
 const SAVE_KEY = 'DUNGEON_LORD_INOTIA_SAVE_V2';
@@ -18,6 +19,8 @@ export function useGameState() {
       heroClassId: 'warrior',
       heroLevel: 1,
       heroExp: 0,
+      talentPoints: 3,
+      talents: {},
       potionsCount: 5,
       activeMercenaryId: 'goblin_berserker',
       gridState: [...INITIAL_SANCTUARY_GRID],
@@ -144,6 +147,26 @@ export function useGameState() {
       crit += eq.ring.critBonus || 0;
     }
 
+    // Talent tree passive perks
+    const talentMap = gameState.talents || {};
+    const classTree = CLASS_TALENT_TREES[gameState.heroClassId];
+    if (classTree) {
+      for (const branch of classTree.branches) {
+        for (const t of branch.talents) {
+          const rank = talentMap[t.id] || 0;
+          if (rank > 0) {
+            const bonuses = t.statBonus(rank);
+            if (bonuses.attack) atk += bonuses.attack;
+            if (bonuses.defense) def += bonuses.defense;
+            if (bonuses.maxHp) maxHp += bonuses.maxHp;
+            if (bonuses.maxMp) maxMp += bonuses.maxMp;
+            if (bonuses.critChance) crit += bonuses.critChance;
+            if (bonuses.speedBonus) speed += bonuses.speedBonus;
+          }
+        }
+      }
+    }
+
     const lvlMultiplier = 1 + (gameState.heroLevel - 1) * 0.15;
     atk = Math.round(atk * lvlMultiplier);
     maxHp = Math.round(maxHp * lvlMultiplier);
@@ -157,7 +180,7 @@ export function useGameState() {
       speed,
       critChance: Math.min(0.90, crit)
     };
-  }, [heroClass, gameState.equipment, gameState.gridState, gameState.heroLevel]);
+  }, [heroClass, gameState.equipment, gameState.gridState, gameState.heroLevel, gameState.talents, gameState.heroClassId]);
 
   // Actions
   const claimPassiveIncome = useCallback(() => {
@@ -235,11 +258,13 @@ export function useGameState() {
       let expToAdd = kills * 40;
       let newExp = prev.heroExp + expToAdd;
       let newLevel = prev.heroLevel;
+      let newTalentPoints = prev.talentPoints || 0;
       const expNeeded = newLevel * 120;
 
       if (newExp >= expNeeded) {
         newLevel += 1;
         newExp -= expNeeded;
+        newTalentPoints += 1;
         sound.playLevelUp();
       }
 
@@ -248,7 +273,38 @@ export function useGameState() {
         gold: prev.gold + earnedGold,
         gems: prev.gems + earnedGems,
         heroLevel: newLevel,
-        heroExp: newExp
+        heroExp: newExp,
+        talentPoints: newTalentPoints
+      };
+    });
+  }, []);
+
+  const learnTalent = useCallback((talentId, maxRank) => {
+    setGameState(prev => {
+      if ((prev.talentPoints || 0) <= 0) return prev;
+      const currentRank = prev.talents?.[talentId] || 0;
+      if (currentRank >= maxRank) return prev;
+
+      sound.playLevelUp();
+      return {
+        ...prev,
+        talentPoints: prev.talentPoints - 1,
+        talents: {
+          ...(prev.talents || {}),
+          [talentId]: currentRank + 1
+        }
+      };
+    });
+  }, []);
+
+  const resetTalents = useCallback(() => {
+    setGameState(prev => {
+      const invested = Object.values(prev.talents || {}).reduce((a, b) => a + b, 0);
+      sound.playEquipItem();
+      return {
+        ...prev,
+        talentPoints: (prev.talentPoints || 0) + invested,
+        talents: {}
       };
     });
   }, []);
@@ -313,6 +369,8 @@ export function useGameState() {
     selectMercenary,
     consumePotion,
     markPrologueSeen,
-    resetGame
+    resetGame,
+    learnTalent,
+    resetTalents
   };
 }

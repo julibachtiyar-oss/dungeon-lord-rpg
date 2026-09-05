@@ -14,7 +14,8 @@ import {
   Heart,
   Zap,
   Play,
-  Users
+  Users,
+  Flame
 } from 'lucide-react';
 
 import { useGameState } from './hooks/useGameState';
@@ -24,6 +25,7 @@ import VirtualControls from './components/VirtualControls';
 import InotiaInventoryModal from './components/InotiaInventoryModal';
 import ClassSelectModal from './components/ClassSelectModal';
 import DungeonFloorSelect from './components/DungeonFloorSelect';
+import TalentTreeModal from './components/TalentTreeModal';
 import BossHealthBar from './components/BossHealthBar';
 import InstallPwaPrompt from './components/InstallPwaPrompt';
 import TitleScreen from './components/TitleScreen';
@@ -49,7 +51,9 @@ export default function App() {
     selectMercenary,
     consumePotion,
     markPrologueSeen,
-    resetGame
+    resetGame,
+    learnTalent,
+    resetTalents
   } = useGameState();
 
   // Screens: 'title' | 'sanctuary' | 'adventure'
@@ -58,6 +62,7 @@ export default function App() {
   const [isInventoryOpen, setIsInventoryOpen] = useState(false);
   const [isClassSelectOpen, setIsClassSelectOpen] = useState(false);
   const [isFloorSelectOpen, setIsFloorSelectOpen] = useState(false);
+  const [isTalentTreeOpen, setIsTalentTreeOpen] = useState(false);
   const [soundMuted, setSoundMuted] = useState(false);
 
   // Story Dialogue State
@@ -242,6 +247,7 @@ export default function App() {
           onStartAdventure={() => setIsFloorSelectOpen(true)}
           onOpenInventory={() => setIsInventoryOpen(true)}
           onOpenClassSelect={() => setIsClassSelectOpen(true)}
+          onOpenTalentTree={() => setIsTalentTreeOpen(true)}
           onUpdateGrid={updateGrid}
           onAddSanctuaryRewards={addSanctuaryRewards}
           onAddLoot={addLootItem}
@@ -265,39 +271,55 @@ export default function App() {
           />
 
           {/* Top Adventure HUD */}
-          <div className="absolute top-0 left-0 right-0 z-30 p-3 pt-4 bg-gradient-to-b from-black/85 via-black/40 to-transparent flex items-start justify-between pointer-events-none">
-            {/* Left: Hero & Mercenary Party Status */}
-            <div className="flex items-center gap-2 pointer-events-auto">
-              {/* Hero Avatar */}
-              <div
-                className="w-11 h-11 rounded-2xl flex items-center justify-center font-black text-xl shadow-lg border-2 border-white/40"
-                style={{ backgroundColor: heroClass.color }}
-              >
-                {heroClass.avatar || '⚔️'}
+          {/* Top Adventure HUD - Inotia Retro Ornate Layout */}
+          <div className="absolute top-0 left-0 right-0 z-30 p-2.5 pt-3 bg-gradient-to-b from-black/90 via-black/50 to-transparent flex items-start justify-between pointer-events-none">
+            {/* Left: Hero Portrait & Dual Ornate Bars */}
+            <div className="flex items-center gap-2.5 pointer-events-auto">
+              {/* Ornate Gold Dragon Hero Portrait Frame */}
+              <div className="relative">
+                <div
+                  className="w-13 h-13 rounded-2xl flex items-center justify-center font-black text-2xl shadow-2xl border-2 border-gold-400/90 relative overflow-hidden ring-2 ring-black/80"
+                  style={{ 
+                    backgroundColor: heroClass.color,
+                    boxShadow: '0 0 14px rgba(250, 204, 21, 0.35)' 
+                  }}
+                >
+                  {/* Subtle shine diagonal sheen */}
+                  <div className="absolute inset-0 bg-gradient-to-tr from-black/40 via-transparent to-white/20 pointer-events-none" />
+                  <span className="relative z-10 drop-shadow">{heroClass.avatar || '⚔️'}</span>
+                </div>
+                {/* Level Diamond Badge */}
+                <div className="absolute -bottom-1 -right-1 bg-gradient-to-r from-amber-600 to-yellow-500 text-black text-[9px] font-black px-1.5 py-0.2 rounded-md border border-amber-300 shadow-md font-fantasy">
+                  Lv.{gameState.heroLevel || 1}
+                </div>
               </div>
 
-              {/* HP & MP Bars */}
-              <div className="space-y-1 w-32 sm:w-44">
-                {/* Health Bar */}
-                <div className="relative w-full h-4 bg-black/70 rounded-full border border-blood-600/70 overflow-hidden p-0.5 shadow-inner">
-                  <div
-                    className="h-full bg-gradient-to-r from-blood-600 to-blood-400 rounded-full transition-all duration-150"
-                    style={{ width: `${Math.max(0, Math.min(100, (liveStats.currentHp / liveStats.maxHp) * 100))}%` }}
-                  />
-                  <span className="absolute inset-0 flex items-center justify-center text-[9px] font-black text-white drop-shadow">
-                    {Math.max(0, Math.round(liveStats.currentHp))} / {liveStats.maxHp} HP
+              {/* HP & MP Dual Ornate Bars */}
+              <div className="space-y-1.5 w-36 sm:w-48">
+                {/* Hero Name & Class */}
+                <div className="flex items-center justify-between text-[10px] font-black text-gold-300 font-fantasy leading-none drop-shadow">
+                  <span>{heroClass.name}</span>
+                  <span className="text-[9px] text-slate-400 font-mono">
+                    {Math.max(0, Math.round(liveStats.currentHp))}/{liveStats.maxHp}
                   </span>
                 </div>
 
-                {/* Mana Bar */}
-                <div className="relative w-full h-3 bg-black/70 rounded-full border border-mana-600/70 overflow-hidden p-0.5 shadow-inner">
+                {/* Health Bar (Red Ruby Glass Sheen) */}
+                <div className="relative w-full h-3.5 bg-black/80 rounded-full border border-blood-500/80 overflow-hidden p-0.5 shadow-inner ring-1 ring-black">
                   <div
-                    className="h-full bg-gradient-to-r from-mana-600 to-mana-400 rounded-full transition-all duration-150"
+                    className="h-full bg-gradient-to-r from-red-700 via-blood-500 to-rose-400 rounded-full transition-all duration-100 relative"
+                    style={{ width: `${Math.max(0, Math.min(100, (liveStats.currentHp / liveStats.maxHp) * 100))}%` }}
+                  >
+                    <div className="absolute inset-0 bg-white/15 rounded-full" />
+                  </div>
+                </div>
+
+                {/* Mana Bar (Blue Sapphire Glass Sheen) */}
+                <div className="relative w-full h-2.5 bg-black/80 rounded-full border border-mana-500/80 overflow-hidden p-0.5 shadow-inner ring-1 ring-black">
+                  <div
+                    className="h-full bg-gradient-to-r from-blue-700 via-mana-500 to-cyan-300 rounded-full transition-all duration-100"
                     style={{ width: `${Math.max(0, Math.min(100, (liveStats.currentMp / liveStats.maxMp) * 100))}%` }}
                   />
-                  <span className="absolute inset-0 flex items-center justify-center text-[8px] font-black text-white drop-shadow">
-                    {Math.max(0, Math.round(liveStats.currentMp))} / {liveStats.maxMp} MP
-                  </span>
                 </div>
 
                 {/* Mercenary Companion Mini Health Indicator */}
@@ -317,38 +339,58 @@ export default function App() {
               </div>
             </div>
 
-            {/* Center: Floor Badge */}
-            <div className="text-center">
+            {/* Center: Floor Badge & Run Stats */}
+            <div className="text-center space-y-1">
               <span
-                className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider shadow-md inline-block font-fantasy"
+                className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider shadow-lg inline-block font-fantasy"
                 style={{
                   backgroundColor: `${selectedFloor.color}25`,
                   color: selectedFloor.color,
-                  border: `1px solid ${selectedFloor.color}60`
+                  border: `1px solid ${selectedFloor.color}80`
                 }}
               >
                 {selectedFloor.name}
               </span>
+
+              {/* Run Gold & Kills tracker */}
+              <div className="flex items-center justify-center gap-2 text-[9px] text-slate-300 font-bold bg-black/60 px-2 py-0.5 rounded-md border border-white/10">
+                <span className="text-gold-400">+{liveStats.goldEarned || 0}G</span>
+                <span>•</span>
+                <span className="text-blood-400">{liveStats.kills || 0} Kills</span>
+              </div>
             </div>
 
             {/* Right: Sound & Retreat Buttons */}
             <div className="flex items-center gap-1.5 pointer-events-auto">
               <button
                 onClick={toggleSound}
-                className="p-2 rounded-xl bg-black/60 border border-slate-700 text-slate-300 hover:text-white active:scale-95 transition-all shadow-md"
+                className="p-2 rounded-xl bg-black/70 border border-gold-500/30 text-slate-300 hover:text-white active:scale-95 transition-all shadow-md"
               >
                 {soundMuted ? <VolumeX size={16} /> : <Volume2 size={16} className="text-gold-400" />}
               </button>
 
               <button
                 onClick={handleExitToSanctuary}
-                className="px-2.5 py-1.5 rounded-xl bg-blood-600/80 hover:bg-blood-500 border border-blood-400/50 text-white text-[10px] font-black uppercase tracking-wider flex items-center gap-1 active:scale-95 transition-all shadow-md shadow-blood-600/30"
+                className="px-2.5 py-1.5 rounded-xl bg-blood-600/90 hover:bg-blood-500 border border-blood-400/50 text-white text-[10px] font-black uppercase tracking-wider flex items-center gap-1 active:scale-95 transition-all shadow-md shadow-blood-600/30"
               >
                 <LogOut size={13} />
                 <span>Retreat</span>
               </button>
             </div>
           </div>
+
+          {/* Dynamic Combo Multiplier Badge */}
+          {liveStats.comboCount >= 2 && (
+            <div className="absolute top-20 left-4 z-40 pointer-events-none animate-bounce flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/90 border-2 border-gold-400 shadow-2xl shadow-gold-500/40">
+              <Flame size={14} className="text-amber-400 animate-pulse" />
+              <span className="text-xs font-black text-gold-300 font-fantasy tracking-wider">
+                {liveStats.comboCount}x COMBO!
+              </span>
+              <span className="text-[9px] text-amber-300 font-bold uppercase tracking-tight">
+                {liveStats.comboCount >= 15 ? '🔥 GODLIKE' : liveStats.comboCount >= 8 ? '⚡ UNSTOPPABLE' : 'BRUTAL'}
+              </span>
+            </div>
+          )}
 
           {/* Boss Health Bar Overlay */}
           <BossHealthBar
@@ -365,6 +407,8 @@ export default function App() {
             onSkill={(idx) => gameCanvasRef.current?.skill(idx)}
             onDash={() => gameCanvasRef.current?.dash()}
             onPotion={handleUsePotion}
+            onToggleTactics={() => gameCanvasRef.current?.toggleTactics()}
+            tacticsMode={liveStats.tacticsMode || 'attack'}
             skillCooldowns={liveStats.skillCooldowns}
             potionsCount={gameState.potionsCount}
             mercenary={activeMercenary}
@@ -489,7 +533,18 @@ export default function App() {
         totalAttack={totalStats.attack}
       />
 
-      {/* 10. PWA Install Prompt */}
+      {/* 10. Inotia 3-Branch Talent Tree Modal */}
+      <TalentTreeModal
+        isOpen={isTalentTreeOpen}
+        onClose={() => setIsTalentTreeOpen(false)}
+        heroClassId={gameState.heroClassId}
+        talentPoints={gameState.talentPoints}
+        talents={gameState.talents}
+        onLearnTalent={learnTalent}
+        onResetTalents={resetTalents}
+      />
+
+      {/* 11. PWA Install Prompt */}
       <InstallPwaPrompt />
     </div>
   );

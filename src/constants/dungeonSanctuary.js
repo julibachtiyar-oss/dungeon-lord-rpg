@@ -84,6 +84,35 @@ export const BUILDING_TYPES = {
     color: '#10b981',
     costGold: 140,
     costGems: 2
+  },
+  wall: {
+    id: 'wall',
+    name: 'Tembok Granit Benteng',
+    desc: 'Tembok batu kokoh yang tidak dapat dilewati petualang musuh. Gunakan untuk mengatur labirin jebakan!',
+    icon: 'ShieldAlert',
+    color: '#64748b',
+    costGold: 40,
+    costGems: 0,
+    isObstacle: true
+  },
+  torture: {
+    id: 'torture',
+    name: 'Kamar Siksaan Iblis',
+    desc: 'Menurunkan attack petualang musuh yang melintasinya sebesar -35%.',
+    icon: 'Skull',
+    color: '#9333ea',
+    costGold: 190,
+    costGems: 3
+  },
+  library: {
+    id: 'library',
+    name: 'Perpustakaan Kitab Terlarang',
+    desc: 'Meningkatkan perolehan EXP Hero dan Minion di petualangan sebesar +25%.',
+    icon: 'Sparkles',
+    color: '#38bdf8',
+    costGold: 240,
+    costGems: 5,
+    expBonus: 0.25
   }
 };
 

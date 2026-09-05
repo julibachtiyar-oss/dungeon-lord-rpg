@@ -83,8 +83,12 @@ export class GameEngine {
       defense: mercenaryDef.defense,
       attackCooldownTimer: 0,
       skillCooldownTimer: 0,
-      facingAngle: 0
+      facingAngle: 0,
+      speechBubble: null,
+      speechTimer: 0
     } : null;
+
+    this.tacticsMode = 'attack'; // 'attack' | 'follow'
 
     // Entities
     this.monsters = [...this.dungeon.monsters];
@@ -103,6 +107,21 @@ export class GameEngine {
     };
 
     this.torchTimer = 0;
+    this.floorDecals = [];
+    this.comboCount = 0;
+    this.comboTimer = 0;
+    this.hitstopTimer = 0;
+    this.screenFlash = { color: 'rgba(255, 255, 255, 0)', timer: 0 };
+    this.exploredRooms = new Set([0]);
+    this.ambientDust = Array.from({ length: 35 }, () => ({
+      x: Math.random() * (canvas.width || 800),
+      y: Math.random() * (canvas.height || 600),
+      speedY: 10 + Math.random() * 15,
+      speedX: (Math.random() - 0.5) * 8,
+      size: 1.2 + Math.random() * 2,
+      alpha: 0.25 + Math.random() * 0.45,
+      wobbleOffset: Math.random() * Math.PI * 2
+    }));
   }
 
   start() {
@@ -347,10 +366,35 @@ export class GameEngine {
     monster.hp -= netDamage;
     monster.flashTimer = 0.15;
 
+    // Combo system
+    this.comboCount++;
+    this.comboTimer = 2.5;
+    if (this.comboCount >= 3 && this.comboCount % 3 === 0) {
+      const rank = this.comboCount >= 15 ? 'GODLIKE!!' : this.comboCount >= 9 ? 'UNSTOPPABLE!' : 'EXCELLENT!';
+      this.addFloatingText(this.player.x, this.player.y - 45, `${this.comboCount}x COMBO! ${rank}`, '#facc15', 17);
+    }
+
+    // Visceral hitstop and screen flash on critical hit
     if (isCrit) {
       sound.playCriticalHit();
+      this.hitstopTimer = 0.04; // 40ms micro-pause for massive impact
+      this.screenFlash = { color: 'rgba(250, 204, 21, 0.22)', timer: 0.08 };
+      this.triggerScreenShake(0.22, 9);
     } else {
       sound.playAttackMelee();
+    }
+
+    // Persistent floor decal: Blood splatter
+    if (this.floorDecals.length < 120) {
+      const isSlime = monster.type === 'slime';
+      this.floorDecals.push({
+        x: monster.x + (Math.random() * 16 - 8),
+        y: monster.y + (Math.random() * 16 - 8),
+        radius: 4 + Math.random() * 8,
+        color: isSlime ? '#15803d' : '#7f1d1d',
+        alpha: 0.75,
+        life: 25.0
+      });
     }
 
     // Damage popup
@@ -362,7 +406,7 @@ export class GameEngine {
       isCrit ? 19 : 13
     );
 
-    this.createHitSparks(monster.x, monster.y, monster.color, 10);
+    this.createHitSparks(monster.x, monster.y, monster.color, isCrit ? 16 : 8);
 
     if (monster.hp <= 0) {
       this.killMonster(monster);
@@ -527,6 +571,13 @@ export class GameEngine {
     const dt = Math.min(0.1, (timestamp - this.lastTime) / 1000);
     this.lastTime = timestamp;
 
+    if (this.hitstopTimer > 0) {
+      this.hitstopTimer -= dt;
+      this.render();
+      this.animId = requestAnimationFrame(this.loop.bind(this));
+      return;
+    }
+
     this.update(dt);
     this.render();
 
@@ -552,6 +603,51 @@ export class GameEngine {
 
     if (this.camera.shakeTimer > 0) {
       this.camera.shakeTimer -= dt;
+    }
+
+    // Combo timer
+    if (this.comboTimer > 0) {
+      this.comboTimer -= dt;
+      if (this.comboTimer <= 0) {
+        this.comboCount = 0;
+      }
+    }
+
+    // Screen flash
+    if (this.screenFlash.timer > 0) {
+      this.screenFlash.timer -= dt;
+    }
+
+    // Floor decals decay
+    for (let i = this.floorDecals.length - 1; i >= 0; i--) {
+      const d = this.floorDecals[i];
+      d.life -= dt;
+      d.alpha = Math.min(0.7, d.life / 6.0);
+      if (d.life <= 0) {
+        this.floorDecals.splice(i, 1);
+      }
+    }
+
+    // Room Discovery & Exploration
+    for (const r of this.dungeon.rooms) {
+      if (!this.exploredRooms.has(r.id)) {
+        if (this.player.x >= r.x && this.player.x <= r.x + r.w &&
+            this.player.y >= r.y && this.player.y <= r.y + r.h) {
+          this.exploredRooms.add(r.id);
+          this.addFloatingText(r.cx, r.cy, `📍 ${r.name}`, r.isBoss ? '#c084fc' : '#facc15', 18);
+          this.createAuraParticles(r.cx, r.cy, r.isBoss ? '#c084fc' : '#38bdf8', 25);
+        }
+      }
+    }
+
+    // Ambient floating dust particles
+    for (const d of this.ambientDust) {
+      d.y -= d.speedY * dt;
+      d.x += Math.sin(this.gameTime * 2 + d.wobbleOffset) * 8 * dt;
+      if (d.y < -10) {
+        d.y = this.canvas.height + 10;
+        d.x = Math.random() * this.canvas.width;
+      }
     }
 
     this.gameTime += dt;
@@ -597,9 +693,16 @@ export class GameEngine {
       const dyToPlayer = this.player.y - merc.y;
       const distToPlayer = Math.hypot(dxToPlayer, dyToPlayer);
 
-      // Find closest enemy within 220px
+      // Companion Speech Bubble decay
+      if (merc.speechTimer > 0) {
+        merc.speechTimer -= dt;
+        if (merc.speechTimer <= 0) merc.speechBubble = null;
+      }
+
+      // Max search radius based on tacticsMode
+      const maxRange = this.tacticsMode === 'follow' ? 95 : 250;
       let closestEnemy = null;
-      let closestDist = 220;
+      let closestDist = maxRange;
 
       for (const m of this.monsters) {
         const d = Math.hypot(m.x - merc.x, m.y - merc.y);
@@ -609,7 +712,9 @@ export class GameEngine {
         }
       }
 
-      if (closestEnemy && distToPlayer < 280) {
+      const shouldAttack = closestEnemy && (this.tacticsMode === 'attack' ? distToPlayer < 280 : distToPlayer < 110);
+
+      if (shouldAttack) {
         // Target enemy
         const angle = Math.atan2(closestEnemy.y - merc.y, closestEnemy.x - merc.x);
         merc.facingAngle = angle;
@@ -625,15 +730,29 @@ export class GameEngine {
             sound.playAttackMelee();
             this.damageMonster(closestEnemy, merc.attack, false);
             this.addFloatingText(closestEnemy.x, closestEnemy.y - 20, `${merc.name.split(' ')[0]}: -${merc.attack}`, merc.color);
+
+            // Inotia Battle Cry
+            if (Math.random() < 0.28 && merc.speechTimer <= 0) {
+              const cries = [
+                'Mampus kau!',
+                'Rasakan hantamanku!',
+                'Demi Dungeon!',
+                'Tebasan Maut!',
+                'Lindungi Tuanku!'
+              ];
+              merc.speechBubble = cries[Math.floor(Math.random() * cries.length)];
+              merc.speechTimer = 1.8;
+            }
           }
         }
       } else {
         // Follow player (maintain distance ~45px)
-        if (distToPlayer > 50) {
+        if (distToPlayer > 45) {
           const angle = Math.atan2(dyToPlayer, dxToPlayer);
           merc.facingAngle = angle;
-          merc.x += Math.cos(angle) * (this.player.baseSpeed * 0.95) * 60 * dt;
-          merc.y += Math.sin(angle) * (this.player.baseSpeed * 0.95) * 60 * dt;
+          const spdMult = this.tacticsMode === 'follow' ? 1.05 : 0.95;
+          merc.x += Math.cos(angle) * (this.player.baseSpeed * spdMult) * 60 * dt;
+          merc.y += Math.sin(angle) * (this.player.baseSpeed * spdMult) * 60 * dt;
         }
       }
     }
@@ -850,9 +969,25 @@ export class GameEngine {
         bossName: this.boss ? this.boss.name : null,
         mercenaryHp: this.mercenary ? this.mercenary.hp : null,
         mercenaryMaxHp: this.mercenary ? this.mercenary.maxHp : null,
-        skillCooldowns: { ...this.input.skillCooldowns }
+        skillCooldowns: { ...this.input.skillCooldowns },
+        comboCount: this.comboCount,
+        comboTimer: this.comboTimer,
+        tacticsMode: this.tacticsMode
       });
     }
+  }
+
+  toggleTactics() {
+    this.tacticsMode = this.tacticsMode === 'attack' ? 'follow' : 'attack';
+    sound.playEquipItem();
+    const isAttack = this.tacticsMode === 'attack';
+    this.addFloatingText(
+      this.player.x, 
+      this.player.y - 35, 
+      isAttack ? '⚔️ TAKTIK: SERBU BEBAS!' : '🛡️ TAKTIK: KAWAL PEMIMPIN!', 
+      isAttack ? '#facc15' : '#38bdf8', 
+      16
+    );
   }
 
   render() {
@@ -882,6 +1017,34 @@ export class GameEngine {
     // Rooms
     for (const room of this.dungeon.rooms) {
       DungeonTileRenderer.drawRoom(ctx, room, this.gameTime);
+
+      // Shroud unexplored rooms in atmospheric Fog of War
+      if (!this.exploredRooms.has(room.id)) {
+        ctx.save();
+        ctx.fillStyle = 'rgba(5, 7, 12, 0.95)';
+        ctx.fillRect(room.x, room.y, room.w, room.h);
+        ctx.strokeStyle = '#1e293b';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(room.x, room.y, room.w, room.h);
+
+        // Ancient mystery glyph in center
+        ctx.font = "bold 22px 'Cinzel', serif";
+        ctx.fillStyle = 'rgba(250, 204, 21, 0.22)';
+        ctx.textAlign = 'center';
+        ctx.fillText('?', room.cx, room.cy + 7);
+        ctx.restore();
+      }
+    }
+
+    // Floor Decals (Persistent Blood & Scorch Stains)
+    for (const d of this.floorDecals) {
+      ctx.save();
+      ctx.globalAlpha = d.alpha;
+      ctx.fillStyle = d.color;
+      ctx.beginPath();
+      ctx.ellipse(d.x, d.y, d.radius, d.radius * 0.6, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
     }
 
     // 2. Draw Torches
@@ -951,9 +1114,40 @@ export class GameEngine {
       ctx.restore();
     }
 
+    // Screen Flash effect (Golden crit burst / Blood damage pulse)
+    if (this.screenFlash.timer > 0) {
+      ctx.save();
+      ctx.fillStyle = this.screenFlash.color;
+      ctx.fillRect(camX - 100, camY - 100, canvas.width + 200, canvas.height + 200);
+      ctx.restore();
+    }
+
     ctx.restore();
 
-    // 10. Mini-map
+    // 10. Ambient Floating Dust Motes & Dungeon Embers (Screen-Space)
+    ctx.save();
+    for (const d of this.ambientDust) {
+      ctx.fillStyle = '#fde047';
+      ctx.globalAlpha = d.alpha * (0.6 + Math.sin(this.gameTime * 3 + d.wobbleOffset) * 0.4);
+      ctx.beginPath();
+      ctx.arc(d.x, d.y, d.size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+
+    // 11. Cinematic Dark Dungeon Vignette
+    ctx.save();
+    const vigGrad = ctx.createRadialGradient(
+      canvas.width / 2, canvas.height / 2, Math.min(canvas.width, canvas.height) * 0.42,
+      canvas.width / 2, canvas.height / 2, Math.max(canvas.width, canvas.height) * 0.78
+    );
+    vigGrad.addColorStop(0, 'rgba(0, 0, 0, 0)');
+    vigGrad.addColorStop(1, 'rgba(3, 5, 10, 0.65)');
+    ctx.fillStyle = vigGrad;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.restore();
+
+    // 12. Mini-map with Fog of War
     this.renderMiniMap(ctx);
   }
 
@@ -963,7 +1157,7 @@ export class GameEngine {
     const mmY = 14;
 
     ctx.save();
-    ctx.fillStyle = 'rgba(7, 9, 14, 0.75)';
+    ctx.fillStyle = 'rgba(7, 9, 14, 0.85)';
     ctx.fillRect(mmX, mmY, mmSize, mmSize);
     ctx.strokeStyle = '#3a4e6e';
     ctx.lineWidth = 1.5;
@@ -973,7 +1167,8 @@ export class GameEngine {
     const scaleY = mmSize / this.dungeon.mapHeight;
 
     for (const r of this.dungeon.rooms) {
-      ctx.fillStyle = r.isBoss ? '#a855f7' : r.isStart ? '#10b981' : '#64748b';
+      const isExplored = this.exploredRooms.has(r.id);
+      ctx.fillStyle = !isExplored ? '#0f172a' : r.isBoss ? '#a855f7' : r.isStart ? '#10b981' : '#64748b';
       ctx.fillRect(mmX + r.x * scaleX, mmY + r.y * scaleY, r.w * scaleX, r.h * scaleY);
     }
 

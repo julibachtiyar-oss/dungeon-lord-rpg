@@ -69,6 +69,9 @@ const GameCanvas = forwardRef(function GameCanvas({
     },
     usePotion: (type) => {
       engineRef.current?.usePotion(type);
+    },
+    toggleTactics: () => {
+      engineRef.current?.toggleTactics();
     }
   }));
 

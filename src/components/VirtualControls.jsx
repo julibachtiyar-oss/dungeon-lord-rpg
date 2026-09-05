@@ -20,6 +20,8 @@ export default function VirtualControls({
   onSkill,
   onDash,
   onPotion,
+  onToggleTactics,
+  tacticsMode = 'attack',
   skillCooldowns = {},
   potionsCount = 3,
   mercenary
@@ -192,8 +194,26 @@ export default function VirtualControls({
 
       {/* 2. Right Side: Inotia Circular Action Button Cluster */}
       <div className="pointer-events-auto relative flex flex-col items-end gap-2.5 pr-2 pb-1">
-        {/* Top Mini Controls: Potion & Dash */}
-        <div className="flex items-center gap-2.5">
+        {/* Top Mini Controls: Tactics, Potion & Dash */}
+        <div className="flex items-center gap-2">
+          {/* Mercenary Tactic Toggle */}
+          {mercenary && onToggleTactics && (
+            <button
+              onClick={onToggleTactics}
+              className={`h-11 px-2.5 rounded-2xl border active:scale-90 transition-transform flex items-center justify-center gap-1 shadow-lg ${
+                tacticsMode === 'attack'
+                  ? 'bg-amber-600/90 border-amber-400 text-amber-100 shadow-amber-500/20'
+                  : 'bg-cyan-700/90 border-cyan-400 text-cyan-100 shadow-cyan-500/20'
+              }`}
+              title="Taktik Bayaran: Serbu atau Kawal"
+            >
+              <span className="text-sm">{tacticsMode === 'attack' ? '⚔️' : '🛡️'}</span>
+              <span className="text-[9px] font-black uppercase tracking-tight">
+                {tacticsMode === 'attack' ? 'SERBU' : 'KAWAL'}
+              </span>
+            </button>
+          )}
+
           {/* Quick Potion */}
           <button
             onClick={() => onPotion('health')}
