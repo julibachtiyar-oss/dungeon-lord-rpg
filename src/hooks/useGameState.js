@@ -40,9 +40,18 @@ export function useGameState() {
         const maxOfflineSec = 8 * 3600;
         const cappedOfflineGold = Math.min(offlineGold, Math.floor(maxOfflineSec * goldPerSec));
 
+        const mergedRooms = DUNGEON_ROOMS_TEMPLATE.map(tpl => {
+          const saved = parsed.rooms?.find(r => r.id === tpl.id);
+          return {
+            ...tpl,
+            level: saved?.level || 1
+          };
+        });
+
         return {
           ...defaultState,
           ...parsed,
+          rooms: mergedRooms,
           unclaimedGold: (parsed.unclaimedGold || 0) + cappedOfflineGold,
           lastSaved: now
         };

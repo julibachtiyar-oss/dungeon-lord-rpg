@@ -153,6 +153,7 @@ export default function App() {
       {currentView === 'sanctuary' && (
         <DungeonManagement
           gameState={gameState}
+          heroClass={heroClass}
           onUpgradeRoom={upgradeRoom}
           onClaimPassiveIncome={claimPassiveIncome}
           onStartAdventure={() => setIsFloorSelectOpen(true)}

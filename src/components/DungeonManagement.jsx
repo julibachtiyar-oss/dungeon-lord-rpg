@@ -13,17 +13,20 @@ import {
   HelpCircle
 } from 'lucide-react';
 import { DUNGEON_ROOMS_TEMPLATE } from '../constants/rooms';
+import { HERO_CLASSES } from '../constants/classes';
 import { sound } from '../engine/soundEngine';
 
 export default function DungeonManagement({
   gameState,
+  heroClass,
   onUpgradeRoom,
   onClaimPassiveIncome,
   onStartAdventure,
   onOpenInventory,
   onOpenClassSelect
 }) {
-  const { gold, gems, rooms, unclaimedGold, heroClass, heroLevel } = gameState;
+  const { gold, gems, rooms, unclaimedGold, heroLevel } = gameState;
+  const activeHero = heroClass || HERO_CLASSES[gameState?.heroClassId] || HERO_CLASSES.warrior;
 
   const iconMap = {
     Crown,
@@ -73,7 +76,7 @@ export default function DungeonManagement({
               DUNGEON SANCTUARY
             </h1>
             <p className="text-[10px] text-slate-400 font-medium">
-              Penguasa: <span className="text-white font-bold">{heroClass.name} (Lv.{heroLevel})</span>
+              Penguasa: <span className="text-white font-bold">{activeHero.name} (Lv.{heroLevel})</span>
             </p>
           </div>
         </div>
@@ -205,7 +208,12 @@ export default function DungeonManagement({
 
                   {/* Room Bonus Effect */}
                   <div className="p-2.5 rounded-xl bg-black/40 border border-dungeon-700/50 text-[11px] text-emerald-400 font-medium">
-                    ✨ Efek: {room.effectDesc(room.level)}
+                    ✨ Efek: {(() => {
+                      const tpl = DUNGEON_ROOMS_TEMPLATE.find(t => t.id === room.id) || room;
+                      if (typeof tpl.effectDesc === 'function') return tpl.effectDesc(room.level);
+                      if (typeof room.effectDesc === 'function') return room.effectDesc(room.level);
+                      return 'Meningkatkan kekuatan dungeon.';
+                    })()}
                   </div>
 
                   {/* Upgrade Action Footer */}
