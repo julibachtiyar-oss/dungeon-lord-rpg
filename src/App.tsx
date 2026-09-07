@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+﻿import React, { useEffect, useRef, useState } from 'react';
 import Phaser from 'phaser';
 import { createGameConfig } from './game/config/game.config';
 import { BootScene } from './game/scenes/BootScene';
@@ -12,7 +12,7 @@ import TitleOverlay from './ui/TitleOverlay';
 import DialogueModal from './ui/DialogueModal';
 import ResultScreen from './ui/ResultScreen';
 import PauseMenu from './ui/PauseMenu';
-import { RotateCcw } from 'lucide-react';
+import { RotateCcw, Sparkles } from 'lucide-react';
 
 export default function App() {
   const gameRef = useRef<Phaser.Game | null>(null);
@@ -39,7 +39,7 @@ export default function App() {
 
   // Boss & Story
   const [bossHp, setBossHp] = useState<{ current: number; max: number; phase: number; name: string } | null>(null);
-  const [roomInfo, setRoomInfo] = useState({ floor: 1, roomName: 'Gerbang Kuil' });
+  const [roomInfo, setRoomInfo] = useState({ floor: 1, roomName: 'Gerbang Kuil Kuno' });
   const [activeDialogue, setActiveDialogue] = useState<{ id: number; speaker: string; text: string; options?: string[] } | null>(null);
 
   // Victory / Defeat
@@ -106,71 +106,85 @@ export default function App() {
   }, []);
 
   return (
-    <div className="relative w-screen h-screen bg-[#0b0a10] overflow-hidden select-none touch-none">
-      {/* Phaser Canvas Container */}
-      <div id="game-root" className="w-full h-full flex items-center justify-center" />
+    <div className="relative w-screen h-screen overflow-hidden select-none touch-none bg-[#07090e] flex items-center justify-center">
+      {/* Desktop Scenic Ambient Wallpaper */}
+      <div 
+        className="hidden sm:block absolute inset-0 bg-cover bg-center bg-no-repeat filter blur-sm scale-110 opacity-40 -z-10"
+        style={{ backgroundImage: "url('/backgrounds/emberdeep_sanctuary.jpg')" }}
+      />
+      <div className="hidden sm:block absolute inset-0 bg-black/60 -z-10" />
 
-      {/* Title Screen Overlay */}
-      {gameState === 'title' && <TitleOverlay />}
+      {/* Main Game Container (Edge-to-edge on mobile, Gilded Frame on desktop) */}
+      <div className="relative w-full h-full sm:w-[420px] sm:h-[92vh] sm:max-h-[860px] sm:rounded-[36px] sm:border-4 sm:border-amber-500/70 sm:shadow-[0_0_50px_rgba(245,158,11,0.3)] overflow-hidden bg-[#07090e] flex items-center justify-center">
+        
+        {/* Phaser Canvas Mount */}
+        <div id="game-root" className="w-full h-full flex items-center justify-center" />
 
-      {/* HUD Layer (Playing or Paused) */}
-      {(gameState === 'playing' || gameState === 'paused') && (
-        <HudOverlay
-          stats={playerStats}
-          gold={gold}
-          skills={skills}
-          bossHp={bossHp}
-          roomInfo={roomInfo}
-          onPause={() => {
-            setIsPaused(true);
-            EventBus.emitEvent('game:pause', true);
-          }}
-        />
-      )}
+        {/* Title Screen Overlay */}
+        {gameState === 'title' && <TitleOverlay />}
 
-      {/* Story Dialogue Cutscene */}
-      {activeDialogue && (
-        <DialogueModal
-          dialogue={activeDialogue}
-          onClose={() => setActiveDialogue(null)}
-        />
-      )}
+        {/* HUD Layer (Playing or Paused) */}
+        {(gameState === 'playing' || gameState === 'paused') && (
+          <HudOverlay
+            stats={playerStats}
+            gold={gold}
+            skills={skills}
+            bossHp={bossHp}
+            roomInfo={roomInfo}
+            onPause={() => {
+              setIsPaused(true);
+              EventBus.emitEvent('game:pause', true);
+            }}
+          />
+        )}
 
-      {/* Pause Menu */}
-      {isPaused && (
-        <PauseMenu
-          onResume={() => {
-            setIsPaused(false);
-            EventBus.emitEvent('game:pause', false);
-          }}
-        />
-      )}
+        {/* Story Dialogue Cutscene */}
+        {activeDialogue && (
+          <DialogueModal
+            dialogue={activeDialogue}
+            onClose={() => setActiveDialogue(null)}
+          />
+        )}
 
-      {/* Victory Screen */}
-      {gameState === 'victory' && victoryData && (
-        <ResultScreen data={victoryData} />
-      )}
+        {/* Pause Menu */}
+        {isPaused && (
+          <PauseMenu
+            onResume={() => {
+              setIsPaused(false);
+              EventBus.emitEvent('game:pause', false);
+            }}
+          />
+        )}
 
-      {/* Defeat Screen */}
-      {isGameOver && (
-        <div className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-4 animate-fade-in">
-          <div className="w-full max-w-xs bg-dungeon-950 border-2 border-red-600 rounded-3xl p-6 text-center space-y-4 shadow-2xl">
-            <h2 className="text-2xl font-black font-fantasy text-red-500 uppercase tracking-wider">
-              KAU GUGUR
-            </h2>
-            <p className="text-xs text-slate-400">
-              Kekuatan kuno Emberdeep menghempaskanmu ke tanah.
-            </p>
-            <button
-              onClick={() => window.location.reload()}
-              className="w-full py-3 rounded-2xl bg-red-600 hover:bg-red-500 text-white font-black text-xs uppercase tracking-wider active:scale-95 shadow-lg flex items-center justify-center gap-2 font-fantasy"
-            >
-              <RotateCcw size={16} />
-              <span>Ulangi Ekspedisi</span>
-            </button>
+        {/* Victory Screen */}
+        {gameState === 'victory' && victoryData && (
+          <ResultScreen data={victoryData} />
+        )}
+
+        {/* Defeat Screen */}
+        {isGameOver && (
+          <div className="fixed sm:absolute inset-0 z-50 bg-black/85 flex items-center justify-center p-4 animate-fade-in">
+            <div className="w-full max-w-xs bg-gradient-to-b from-[#1c1318] to-[#0d070a] border-2 border-red-600 rounded-3xl p-6 text-center space-y-4 shadow-2xl shadow-red-950/80">
+              <div className="w-14 h-14 rounded-full bg-red-950/80 border-2 border-red-500 mx-auto flex items-center justify-center text-red-400 text-2xl animate-pulse">
+                💀
+              </div>
+              <h2 className="text-2xl font-black font-fantasy text-red-500 uppercase tracking-wider">
+                KAU GUGUR
+              </h2>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Kekuatan kuno penjaga Emberdeep menghempaskanmu. Bangkitlah kembali, ksatria!
+              </p>
+              <button
+                onClick={() => window.location.reload()}
+                className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-black text-xs uppercase tracking-wider active:scale-95 shadow-lg shadow-red-900/50 flex items-center justify-center gap-2 font-fantasy border border-red-400"
+              >
+                <RotateCcw size={16} />
+                <span>Ulangi Ekspedisi</span>
+              </button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

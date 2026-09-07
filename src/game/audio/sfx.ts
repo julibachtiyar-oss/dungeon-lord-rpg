@@ -123,5 +123,10 @@ export const SFX = {
   },
   door: () => playZzfx(0.6, 0.1, 110, 0.05, 0.15, 0.3, 3, 1, -4, 0, 0, 0, 0, 0.8),
   bossRoar: () => playZzfx(0.9, 0.1, 75, 0.05, 0.4, 0.8, 1, 1, -12, 0, 0, 0, 0, 0.7),
-  uiTap: () => playZzfx(0.3, 0, 600, 0, 0.01, 0.04, 0)
+  uiTap: () => playZzfx(0.3, 0, 600, 0, 0.01, 0.04, 0),
+  victoryFanfare: () => {
+    SFX.levelUp();
+    setTimeout(() => SFX.coin(), 400);
+    setTimeout(() => SFX.levelUp(), 600);
+  }
 };

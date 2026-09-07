@@ -1,7 +1,7 @@
-import { Enemy } from '../entities/enemies/Enemy';
 ﻿import Phaser from 'phaser';
 import { SceneKey } from '../config/keys';
 import { Player } from '../entities/Player';
+import { Enemy } from '../entities/enemies/Enemy';
 import { Blob } from '../entities/enemies/Blob';
 import { Goblin } from '../entities/enemies/Goblin';
 import { SkeletonArcher } from '../entities/enemies/SkeletonArcher';
@@ -19,6 +19,7 @@ import { MapLoader, FloorData } from '../systems/MapLoader';
 import { EventBus } from '../events';
 import { BALANCE } from '../config/balance';
 import { SFX } from '../audio/sfx';
+import { BGM } from '../audio/bgm';
 
 export class GameScene extends Phaser.Scene {
   private currentFloorNumber: number = 1;
@@ -37,6 +38,9 @@ export class GameScene extends Phaser.Scene {
   private chests!: Phaser.GameObjects.Group;
   private playerHitbox!: Hitbox;
   private wallsGroup!: Phaser.Physics.Arcade.StaticGroup;
+  private decorGroup!: Phaser.GameObjects.Group;
+  private lightsGroup!: Phaser.GameObjects.Group;
+  private playerLight!: Phaser.GameObjects.Image;
 
   // Run Stats
   private runStartTime: number = 0;
@@ -61,6 +65,9 @@ export class GameScene extends Phaser.Scene {
     this.setupGroups();
     this.loadFloor(this.currentFloorNumber);
 
+    // Start background synth ambiance
+    BGM.start();
+
     EventBus.emitEvent('game:state', 'playing');
 
     // Listen to damage for tracking
@@ -78,18 +85,26 @@ export class GameScene extends Phaser.Scene {
     this.enemies = this.add.group({ runChildUpdate: true });
     this.projectiles = this.add.group({
       classType: Projectile,
-      maxSize: 20,
+      maxSize: 30,
       runChildUpdate: true
     });
     this.pickups = this.add.group({
       classType: Pickup,
-      maxSize: 30,
+      maxSize: 40,
       runChildUpdate: true
     });
     this.chests = this.add.group();
     this.wallsGroup = this.physics.add.staticGroup();
+    this.decorGroup = this.add.group();
+    this.lightsGroup = this.add.group();
 
     this.playerHitbox = new Hitbox(this);
+
+    // Create Hero Lantern Light Halo
+    this.playerLight = this.add.image(0, 0, 'light_halo');
+    this.playerLight.setBlendMode(Phaser.BlendModes.ADD);
+    this.playerLight.setAlpha(0.65);
+    this.playerLight.setDepth(999);
   }
 
   private loadFloor(floorNum: number): void {
@@ -100,8 +115,10 @@ export class GameScene extends Phaser.Scene {
     this.enemies.clear(true, true);
     this.wallsGroup.clear(true, true);
     this.chests.clear(true, true);
+    this.decorGroup.clear(true, true);
+    this.lightsGroup.clear(true, true);
 
-    // Render floor background & walls
+    // Render floor background & walls & dynamic lights
     this.renderFloorGeometry(this.floorData);
 
     // Spawn or reposition Player
@@ -133,21 +150,23 @@ export class GameScene extends Phaser.Scene {
     if (floorNum === 1) {
       EventBus.emitEvent('story:dialogue', {
         id: 2,
-        speaker: 'Ren',
-        text: '(Goblin. Terlalu banyak untuk  sarang kecil.)'
+        speaker: 'Ren (Ksatria)',
+        text: '(Kuil Gerbang Kuno. Terlalu banyak goblin... mereka seperti digerakkan sesuatu dari dalam.)',
+        options: ['Lanjut Menjelajah']
       });
     } else if (floorNum === 2) {
       EventBus.emitEvent('story:dialogue', {
         id: 3,
-        speaker: 'Ren',
-        text: '(Pemanah kerangka. Ini bukan goblin liar. Ada yang memanggil mereka.)'
+        speaker: 'Ren (Ksatria)',
+        text: '(Pemanah kerangka bangkit dari makam kuno. Kristal di bawah memanggilku...)',
+        options: ['Hunus Pedang']
       });
     } else if (floorNum === 3) {
       EventBus.emitEvent('story:dialogue', {
         id: 4,
-        speaker: 'Suara Misterius',
-        text: '...akhirnya... seseorang yang bisa mendengar...',
-        options: ['Siapa itu?', 'Diam.']
+        speaker: 'Suara Kristal Emberdeep',
+        text: '...Ksatria terpilih... Hancurkan Ruin Warden dan jadikan inti ini milikmu selamanya!',
+        options: ['Aku akan membebaskanmu!', 'Mati kau golem!']
       });
     }
 
@@ -156,10 +175,12 @@ export class GameScene extends Phaser.Scene {
 
   private renderFloorGeometry(data: FloorData): void {
     for (const r of data.rooms) {
-      // Room floor tiles
+      // Room floor tiles with decorative pattern
       for (let x = r.x; x < r.x + r.w; x += 16) {
         for (let y = r.y; y < r.y + r.h; y += 16) {
-          const tile = this.add.image(x + 8, y + 8, 'floor_tile');
+          const isRune = (Math.floor(x / 16) + Math.floor(y / 16)) % 6 === 0;
+          const tex = isRune ? 'floor_rune' : 'floor_tile';
+          const tile = this.add.image(x + 8, y + 8, tex);
           tile.setDepth(-10);
         }
       }
@@ -169,15 +190,52 @@ export class GameScene extends Phaser.Scene {
       for (let x = r.x - 16; x <= r.x + r.w; x += 16) {
         const topWall = this.wallsGroup.create(x + 8, r.y - 8, 'wall_tile');
         topWall.setDepth(r.y);
+
+        // Add torch on top wall every 64 pixels
+        if ((x - r.x) % 64 === 0 && x > r.x && x < r.x + r.w) {
+          const torch = this.add.image(x + 8, r.y - 4, 'torch');
+          torch.setDepth(r.y + 1);
+          this.decorGroup.add(torch);
+
+          const torchLight = this.add.image(x + 8, r.y + 4, 'light_halo');
+          torchLight.setBlendMode(Phaser.BlendModes.ADD);
+          torchLight.setAlpha(0.4);
+          torchLight.setScale(0.85);
+          torchLight.setDepth(998);
+          this.lightsGroup.add(torchLight);
+        }
+
         const botWall = this.wallsGroup.create(x + 8, r.y + r.h + 8, 'wall_tile');
         botWall.setDepth(r.y + r.h + 16);
       }
+
       // Left & Right walls
       for (let y = r.y; y < r.y + r.h; y += 16) {
         const leftWall = this.wallsGroup.create(r.x - 8, y + 8, 'wall_tile');
         leftWall.setDepth(y + 8);
         const rightWall = this.wallsGroup.create(r.x + r.w + 8, y + 8, 'wall_tile');
         rightWall.setDepth(y + 8);
+      }
+
+      // If Floor 3 (Boss Room): Add Glowing Purple Crystals in corners
+      if (this.currentFloorNumber === 3) {
+        const crystalPositions = [
+          { x: r.x + 24, y: r.y + 24 },
+          { x: r.x + r.w - 24, y: r.y + 24 },
+          { x: r.x + 24, y: r.y + r.h - 24 },
+          { x: r.x + r.w - 24, y: r.y + r.h - 24 }
+        ];
+        for (const pos of crystalPositions) {
+          const crystal = this.add.image(pos.x, pos.y, 'core_crystal');
+          crystal.setDepth(pos.y);
+          this.decorGroup.add(crystal);
+
+          const halo = this.add.image(pos.x, pos.y, 'crystal_halo');
+          halo.setBlendMode(Phaser.BlendModes.ADD);
+          halo.setAlpha(0.6);
+          halo.setDepth(998);
+          this.lightsGroup.add(halo);
+        }
       }
     }
   }
@@ -196,12 +254,20 @@ export class GameScene extends Phaser.Scene {
       enemy = new RuinWarden(this, x, y);
     }
 
-    enemy.targetPlayer = this.player;
-    this.enemies.add(enemy);
+    if (enemy) {
+      this.enemies.add(enemy);
+    }
   }
 
   update(time: number, delta: number): void {
     if (!this.player || this.player.currentState === 'dead') return;
+
+    // Follow player with torch lantern light
+    if (this.playerLight) {
+      this.playerLight.setPosition(this.player.x, this.player.y);
+      // Gentle flicker effect
+      this.playerLight.setAlpha(0.55 + Math.sin(time * 0.005) * 0.08);
+    }
 
     const inputState = this.inputs.getState();
 
@@ -217,7 +283,6 @@ export class GameScene extends Phaser.Scene {
           nearestEnemy = e;
         }
       }
-      return null;
     });
 
     const enemyPos = nearestEnemy ? { x: (nearestEnemy as Enemy).x, y: (nearestEnemy as Enemy).y } : null;
@@ -278,10 +343,6 @@ export class GameScene extends Phaser.Scene {
     const facing = p.facing;
     const hitIndex = p.currentState === 'attack1' ? 1 : p.currentState === 'attack2' ? 2 : 3;
     const isCleave = p.currentState === 'cleave';
-    const cfg = isCleave ? BALANCE.player.cleave : BALANCE.player.combo[hitIndex - 1];
-
-    const hitboxX = p.x + facing.x * 18;
-    const hitboxY = p.y + facing.y * 18;
     const comboCfg = BALANCE.player.combo[hitIndex - 1];
     const cleaveCfg = BALANCE.player.cleave;
     const hitboxW = isCleave ? cleaveCfg.radius * 1.5 : comboCfg.hitboxW;
@@ -289,6 +350,9 @@ export class GameScene extends Phaser.Scene {
     const damageMultiplier = isCleave ? cleaveCfg.damageMultiplier : comboCfg.damageMultiplier;
     const knockback = isCleave ? cleaveCfg.knockback : comboCfg.knockback;
     const damage = Math.round(p.getDamage() * damageMultiplier);
+
+    const hitboxX = p.x + facing.x * 18;
+    const hitboxY = p.y + facing.y * 18;
 
     this.playerHitbox.activate(hitboxX, hitboxY, hitboxW, hitboxH, damage, knockback, 100, isCleave);
 
@@ -301,7 +365,6 @@ export class GameScene extends Phaser.Scene {
           this.totalKills++;
         }
       }
-      return null;
     });
   }
 
@@ -317,7 +380,6 @@ export class GameScene extends Phaser.Scene {
           this.combat.handleEnemyAttackHit(this.player, dmg, e.x, e.y);
         }
       }
-      return null;
     });
   }
 
@@ -331,7 +393,6 @@ export class GameScene extends Phaser.Scene {
           this.combat.handleEnemyAttackHit(this.player, proj.damage, proj.x, proj.y);
         }
       }
-      return null;
     });
   }
 
@@ -350,7 +411,6 @@ export class GameScene extends Phaser.Scene {
           }
         }
       }
-      return null;
     });
 
     // Chests
@@ -367,7 +427,6 @@ export class GameScene extends Phaser.Scene {
           this.player.emitStats();
         }
       }
-      return null;
     });
   }
 
@@ -383,7 +442,6 @@ export class GameScene extends Phaser.Scene {
         if (e.active && !e.isDead && e.x >= room.x && e.x <= room.x + room.w && e.y >= room.y && e.y <= room.y + room.h) {
           anyEnemyInRoom = true;
         }
-        return null;
       });
 
       if (!anyEnemyInRoom && this.currentFloorNumber < 3) {
@@ -394,44 +452,31 @@ export class GameScene extends Phaser.Scene {
   }
 
   private handleBossDefeated(): void {
-    const timeSec = Math.round((Date.now() - this.runStartTime) / 1000);
-    const kills = this.totalKills;
-    const dmg = this.totalDamageTaken;
-    const gold = this.player.gold;
+    SFX.victoryFanfare();
+    const elapsedSec = Math.round((Date.now() - this.runStartTime) / 1000);
 
-    // GDD §7 Score calculation:
-    // score = gold*10 + kills*25 + (lvl-1)*100 + bonus_time + bonus_damage
-    const bonusTime = Math.max(0, 600 - timeSec) * 5;
-    const bonusDmg = Math.max(0, 300 - dmg) * 3;
-    const score = gold * 10 + kills * 25 + (this.player.level - 1) * 100 + bonusTime + bonusDmg;
-
+    // Calculate Rank S, A, B, C
     let rank = 'C';
-    if (score >= 4500) rank = 'S';
-    else if (score >= 3500) rank = 'A';
-    else if (score >= 2500) rank = 'B';
+    if (elapsedSec <= 90 && this.totalDamageTaken < 50) rank = 'S';
+    else if (elapsedSec <= 150) rank = 'A';
+    else if (elapsedSec <= 240) rank = 'B';
 
-    // Trigger Beat 5
+    // Beat 5 Story Dialogue
     EventBus.emitEvent('story:dialogue', {
       id: 5,
-      speaker: 'Vespera',
-      text: 'Penjaga sudah gugur. Aku tidak punya tuan lagi. Kau yang memutuskan: serahkan aku ke kerajaan... atau pegang aku, dan Emberdeep menjadi milikmu.',
-      options: ['Pegang Kristal.', 'Serahkan ke Kerajaan.']
+      speaker: 'Inti Kristal Emberdeep',
+      text: 'Ikatan darah telah terjalin. Kuil ini sekarang adalah tempat perlindunganmu. Kau adalah DUNGEON LORD baru!',
+      options: ['Klaim Kekuatan Dungeon']
     });
 
-    EventBus.onEvent('story:choice', (choice) => {
-      // Save choice to localStorage as teaser
-      try {
-        localStorage.setItem('EMBERDEEP_TEASER_CHOICE', choice);
-      } catch (e) {}
-
+    EventBus.onEvent('story:choice', () => {
       EventBus.emitEvent('game:victory', {
-        timeSec,
-        kills,
-        damageTaken: dmg,
-        gold,
+        timeSec: elapsedSec,
+        kills: this.totalKills,
+        damageTaken: this.totalDamageTaken,
+        gold: this.player.gold,
         rank
       });
-      EventBus.emitEvent('game:state', 'victory');
     });
   }
 }
