@@ -42,11 +42,13 @@ export class GameScene extends Phaser.Scene {
   private lightsGroup!: Phaser.GameObjects.Group;
   private playerLight!: Phaser.GameObjects.Image;
   private stairsPortal: { x: number; y: number } | null = null;
+  private stairsHalo: Phaser.GameObjects.Image | null = null;
 
-  // Run Stats
+  // Run Stats & Timers
   private runStartTime: number = 0;
   private totalKills: number = 0;
   private totalDamageTaken: number = 0;
+  private lastMapEmitTime: number = 0;
 
   constructor() {
     super(SceneKey.Game);
@@ -56,6 +58,7 @@ export class GameScene extends Phaser.Scene {
     this.runStartTime = Date.now();
     this.totalKills = 0;
     this.totalDamageTaken = 0;
+    this.lastMapEmitTime = 0;
 
     this.feel = new FeelManager(this);
     this.particles = new ParticleSystem(this);
@@ -65,13 +68,6 @@ export class GameScene extends Phaser.Scene {
 
     this.setupGroups();
     this.loadFloor(this.currentFloorNumber);
-
-    // Audio
-    if (this.currentFloorNumber === 3) {
-      BGM.playBoss();
-    } else {
-      BGM.playDungeon();
-    }
 
     EventBus.emitEvent('game:state', 'playing');
 
@@ -116,6 +112,7 @@ export class GameScene extends Phaser.Scene {
     this.currentFloorNumber = floorNum;
     this.floorData = MapLoader.getFloor(floorNum);
     this.stairsPortal = null;
+    this.stairsHalo = null;
 
     // Clear previous floor entities
     this.enemies.clear(true, true);
@@ -124,19 +121,28 @@ export class GameScene extends Phaser.Scene {
     this.decorGroup.clear(true, true);
     this.lightsGroup.clear(true, true);
 
-    // Render floor background & connected corridors
+    // 1. Set Expanded Physics World Bounds & Camera Bounds to fit entire dungeon!
+    const b = this.floorData.bounds;
+    const pad = 96;
+    const worldW = (b.maxX - b.minX) + pad * 2;
+    const worldH = (b.maxY - b.minY) + pad * 2;
+    this.physics.world.setBounds(b.minX - pad, b.minY - pad, worldW, worldH);
+    this.cameras.main.setBounds(b.minX - pad, b.minY - pad, worldW, worldH);
+
+    // 2. Render 100% interconnected floor geometry & outer perimeter walls
     this.renderFloorGeometry(this.floorData);
 
-    // Spawn or reposition Player
+    // 3. Spawn or reposition Player
     if (!this.player) {
       this.player = new Player(this, this.floorData.playerSpawn.x, this.floorData.playerSpawn.y);
-      this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
-      this.cameras.main.setZoom(1.05);
+      this.cameras.main.startFollow(this.player, true, 0.15, 0.15);
+      this.cameras.main.setZoom(1.0);
     } else {
       this.player.setPosition(this.floorData.playerSpawn.x, this.floorData.playerSpawn.y);
+      this.cameras.main.startFollow(this.player, true, 0.15, 0.15);
     }
 
-    // Spawn Enemies and Chests per room
+    // 4. Spawn Enemies and Chests per room
     for (const room of this.floorData.rooms) {
       for (const enemyDef of room.enemies) {
         this.spawnEnemy(enemyDef.type, enemyDef.x, enemyDef.y);
@@ -147,31 +153,31 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    // Setup Colliders
+    // 5. Setup Colliders
     this.physics.add.collider(this.player, this.wallsGroup);
     this.physics.add.collider(this.enemies, this.wallsGroup);
     this.physics.add.collider(this.enemies, this.enemies);
 
-    // Switch BGM if entering Boss Room
+    // 6. Audio Track selection
     if (floorNum === 3) {
       BGM.playBoss();
     } else {
       BGM.playDungeon();
     }
 
-    // Trigger Story Beat
+    // Story Beats
     if (floorNum === 1) {
       EventBus.emitEvent('story:dialogue', {
         id: 2,
         speaker: 'Ren (Ksatria)',
-        text: '(Kuil Gerbang Runtuh. Lorong-lorong batu terbuka... sarang goblin ada di aula dalam!)',
-        options: ['Jelajahi Lorong']
+        text: '(Kuil Gerbang Runtuh. Lorong-lorong batu kuno terbuka. Habisi monster di setiap aula untuk membuka segel tangga!)',
+        options: ['Maju Menjelajah']
       });
     } else if (floorNum === 2) {
       EventBus.emitEvent('story:dialogue', {
         id: 3,
         speaker: 'Ren (Ksatria)',
-        text: '(Makam Obsidian. Udara semakin pekat dengan getaran kristal ungu...)',
+        text: '(Makam Obsidian. Udara semakin dingin... pemanah kerangka dan goblin menjaga jalan ke inti kuil.)',
         options: ['Hunus Pedang']
       });
     } else if (floorNum === 3) {
@@ -189,7 +195,7 @@ export class GameScene extends Phaser.Scene {
   private renderFloorGeometry(data: FloorData): void {
     const floorTilesSet = new Set<string>();
 
-    // 1. Collect all room tiles
+    // 1. Collect all room floor tiles
     for (const r of data.rooms) {
       for (let x = r.x; x < r.x + r.w; x += 16) {
         for (let y = r.y; y < r.y + r.h; y += 16) {
@@ -198,7 +204,7 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    // 2. Collect all corridor tiles (connecting rooms smoothly!)
+    // 2. Collect all corridor floor tiles
     for (const c of data.corridors) {
       for (let x = c.x; x < c.x + c.w; x += 16) {
         for (let y = c.y; y < c.y + c.h; y += 16) {
@@ -218,7 +224,7 @@ export class GameScene extends Phaser.Scene {
       tile.setDepth(-10);
     });
 
-    // 4. Place wall tiles strictly on the true outer perimeter
+    // 4. Place wall tiles strictly on the outer perimeter
     const wallSet = new Set<string>();
     const offsets = [
       [-16, 0], [16, 0], [0, -16], [0, 16],
@@ -244,7 +250,7 @@ export class GameScene extends Phaser.Scene {
 
     // 5. Add torches and DownStairs Portal
     for (const r of data.rooms) {
-      // Add a wall torch in each room
+      // Wall torch
       const torchX = r.x + 32;
       const torchY = r.y - 4;
       const torch = this.add.image(torchX, torchY, 'torch');
@@ -259,19 +265,19 @@ export class GameScene extends Phaser.Scene {
 
       // DownStairs Portal in exit room
       if (r.isDownStairs) {
-        const px = r.x + r.w * 0.5;
-        const py = r.y + r.h * 0.5;
+        const px = r.x + Math.floor(r.w * 0.5);
+        const py = r.y + Math.floor(r.h * 0.5);
         this.stairsPortal = { x: px, y: py };
 
         const portal = this.add.image(px, py, 'stairs_portal');
         portal.setDepth(py);
         this.decorGroup.add(portal);
 
-        const halo = this.add.image(px, py, 'crystal_halo');
-        halo.setBlendMode(Phaser.BlendModes.ADD);
-        halo.setAlpha(0.65);
-        halo.setScale(0.85);
-        this.lightsGroup.add(halo);
+        this.stairsHalo = this.add.image(px, py, 'crystal_halo');
+        this.stairsHalo.setBlendMode(Phaser.BlendModes.ADD);
+        this.stairsHalo.setAlpha(0.7);
+        this.stairsHalo.setScale(0.9);
+        this.lightsGroup.add(this.stairsHalo);
       }
     }
 
@@ -327,14 +333,21 @@ export class GameScene extends Phaser.Scene {
       this.playerLight.setAlpha(0.55 + Math.sin(time * 0.005) * 0.08);
     }
 
+    // Pulse stairs halo
+    if (this.stairsHalo) {
+      this.stairsHalo.setAlpha(0.6 + Math.sin(time * 0.006) * 0.25);
+    }
+
     const inputState = this.inputs.getState();
 
     // Auto-aim: find nearest active enemy
     let nearestEnemy: Enemy | null = null;
     let minDist = 999;
+    let activeEnemiesCount = 0;
     this.enemies.getChildren().forEach((child) => {
       const e = child as Enemy;
       if (e.active && !e.isDead) {
+        activeEnemiesCount++;
         const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, e.x, e.y);
         if (d < minDist) {
           minDist = d;
@@ -384,7 +397,28 @@ export class GameScene extends Phaser.Scene {
     this.checkPickupsAndChests();
 
     // Check Stairs / Floor Progression
-    this.checkStairsProgression();
+    this.checkStairsProgression(activeEnemiesCount === 0);
+
+    // Periodically emit mini-map radar state (every 250ms)
+    if (time - this.lastMapEmitTime > 250) {
+      this.lastMapEmitTime = time;
+      EventBus.emitEvent('dungeon:map', {
+        playerX: Math.round(this.player.x),
+        playerY: Math.round(this.player.y),
+        floor: this.currentFloorNumber,
+        bounds: this.floorData.bounds,
+        rooms: this.floorData.rooms.map((r) => ({
+          id: r.id,
+          x: r.x,
+          y: r.y,
+          w: r.w,
+          h: r.h,
+          isExit: r.isDownStairs
+        })),
+        enemiesCount: activeEnemiesCount,
+        portalReady: activeEnemiesCount === 0
+      });
+    }
 
     // Emit Skills Cooldown Progress to React HUD
     EventBus.emitEvent('player:skills', this.player.getSkillState(time));
@@ -488,20 +522,14 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  private checkStairsProgression(): void {
+  private checkStairsProgression(allEnemiesDefeated: boolean): void {
     if (!this.stairsPortal || this.currentFloorNumber >= 3) return;
 
     const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, this.stairsPortal.x, this.stairsPortal.y);
-    if (dist <= 24) {
-      // Check if enemies are defeated
-      let enemiesAlive = false;
-      this.enemies.getChildren().forEach((child) => {
-        const e = child as Enemy;
-        if (e.active && !e.isDead) enemiesAlive = true;
-      });
-
-      if (!enemiesAlive) {
+    if (dist <= 28) {
+      if (allEnemiesDefeated) {
         SFX.door();
+        this.cameras.main.flash(300, 255, 255, 255);
         this.loadFloor(this.currentFloorNumber + 1);
       }
     }

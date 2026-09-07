@@ -23,6 +23,7 @@ export type EventPayloads = {
   'story:dialogue': { id: number; speaker: string; text: string; options?: string[] } | null;
   'story:choice': string;
   'room:changed': { floor: number; roomName: string };
+  'dungeon:map': { playerX: number; playerY: number; floor: number; bounds: { minX: number; minY: number; maxX: number; maxY: number }; rooms: Array<{ id: string; x: number; y: number; w: number; h: number; isExit?: boolean }>; enemiesCount: number; portalReady: boolean };
   'input:joystick': { x: number; y: number; active: boolean };
   'input:button': { action: 'attack' | 'cleave' | 'bulwark' | 'dash' | 'potion' };
   'game:victory': { timeSec: number; kills: number; damageTaken: number; gold: number; rank: string };
