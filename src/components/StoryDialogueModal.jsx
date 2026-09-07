@@ -9,6 +9,10 @@ export default function StoryDialogueModal({ isOpen, dialogueList, onFinish }) {
   const currentDialogue = dialogueList ? dialogueList[currentIndex] : null;
 
   useEffect(() => {
+    setCurrentIndex(0);
+  }, [dialogueList]);
+
+  useEffect(() => {
     if (!isOpen || !currentDialogue) return;
 
     let charIdx = 0;

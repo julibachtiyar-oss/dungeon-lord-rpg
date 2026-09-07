@@ -139,7 +139,7 @@ export default function PrologueModal({ isOpen, onComplete }) {
               PILIH KELAS UTAMA:
             </label>
 
-            {HERO_CLASSES.map((cls) => {
+            {Object.values(HERO_CLASSES).map((cls) => {
               const isSelected = selectedClass === cls.id;
               const icons = {
                 warrior: <Shield size={18} className="text-amber-400" />,
@@ -170,7 +170,7 @@ export default function PrologueModal({ isOpen, onComplete }) {
                       </span>
                     </div>
                     <p className="text-[10px] text-slate-300 line-clamp-1">
-                      {cls.description}
+                      {cls.lore || cls.title}
                     </p>
                   </div>
                 </div>

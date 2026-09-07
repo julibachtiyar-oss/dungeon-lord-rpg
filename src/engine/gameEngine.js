@@ -47,8 +47,8 @@ export class GameEngine {
 
     // Player State
     this.player = {
-      x: this.dungeon.playerSpawn.x,
-      y: this.dungeon.playerSpawn.y,
+      x: this.dungeon?.playerSpawn?.x ?? 300,
+      y: this.dungeon?.playerSpawn?.y ?? 300,
       radius: 18,
       facingAngle: 0,
       baseSpeed: playerStats.speed || heroClass.baseStats.speed,

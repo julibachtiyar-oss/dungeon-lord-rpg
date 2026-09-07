@@ -386,7 +386,7 @@ export default function TownHub({
               if (gameState.dungeonHomeUnlocked || gameState.storyChapter >= 2) {
                 onGoToSanctuary();
               } else {
-                onTalkToElena();
+                handleTalkToElena();
               }
             }}
             className="py-2.5 rounded-2xl bg-gradient-to-r from-purple-900 to-indigo-900 border border-purple-400 text-center active:scale-95 transition-all shadow-md"
