@@ -1,4 +1,4 @@
-﻿import Phaser from 'phaser';
+import Phaser from 'phaser';
 import { SceneKey } from '../config/keys';
 
 export class PreloadScene extends Phaser.Scene {
@@ -141,34 +141,91 @@ export class PreloadScene extends Phaser.Scene {
       g.destroy();
     }
 
-    // 5. 2D HERO KNIGHT SPRITES (Authentic to hero_warrior.jpg)
-    // Frame: Idle
-    if (!this.textures.exists('hero_idle')) {
+    // 5. 2D HERO KNIGHT SPRITES (Authentic GDD §3 & ASSET SPEC)
+    // Down (Front facing)
+    if (!this.textures.exists('hero_idle_down')) {
       const g = this.add.graphics();
-      this.drawHeroBase(g, 0, 0, false, 0);
-      g.generateTexture('hero_idle', 24, 32);
+      this.drawHeroDown(g, 0, 0, 0);
+      g.generateTexture('hero_idle_down', 24, 32);
+      g.destroy();
+    }
+    if (!this.textures.exists('hero_walk_down_1')) {
+      const g = this.add.graphics();
+      this.drawHeroDown(g, -2, 1, 1);
+      g.generateTexture('hero_walk_down_1', 24, 32);
+      g.destroy();
+    }
+    if (!this.textures.exists('hero_walk_down_2')) {
+      const g = this.add.graphics();
+      this.drawHeroDown(g, 2, 1, -1);
+      g.generateTexture('hero_walk_down_2', 24, 32);
       g.destroy();
     }
 
-    // Frame: Walk 1 & 2
+    // Up (Back facing)
+    if (!this.textures.exists('hero_idle_up')) {
+      const g = this.add.graphics();
+      this.drawHeroUp(g, 0, 0, 0);
+      g.generateTexture('hero_idle_up', 24, 32);
+      g.destroy();
+    }
+    if (!this.textures.exists('hero_walk_up_1')) {
+      const g = this.add.graphics();
+      this.drawHeroUp(g, -2, 1, 1);
+      g.generateTexture('hero_walk_up_1', 24, 32);
+      g.destroy();
+    }
+    if (!this.textures.exists('hero_walk_up_2')) {
+      const g = this.add.graphics();
+      this.drawHeroUp(g, 2, 1, -1);
+      g.generateTexture('hero_walk_up_2', 24, 32);
+      g.destroy();
+    }
+
+    // Side (Profile facing)
+    if (!this.textures.exists('hero_idle_side')) {
+      const g = this.add.graphics();
+      this.drawHeroSide(g, 0, 0, 0);
+      g.generateTexture('hero_idle_side', 24, 32);
+      g.destroy();
+    }
+    if (!this.textures.exists('hero_walk_side_1')) {
+      const g = this.add.graphics();
+      this.drawHeroSide(g, -2, 1, 1);
+      g.generateTexture('hero_walk_side_1', 24, 32);
+      g.destroy();
+    }
+    if (!this.textures.exists('hero_walk_side_2')) {
+      const g = this.add.graphics();
+      this.drawHeroSide(g, 2, 1, -1);
+      g.generateTexture('hero_walk_side_2', 24, 32);
+      g.destroy();
+    }
+
+    // Fallbacks for default idle and walk
+    if (!this.textures.exists('hero_idle')) {
+      const g = this.add.graphics();
+      this.drawHeroDown(g, 0, 0, 0);
+      g.generateTexture('hero_idle', 24, 32);
+      g.destroy();
+    }
     if (!this.textures.exists('hero_walk_1')) {
       const g = this.add.graphics();
-      this.drawHeroBase(g, -2, 1, true, 1);
+      this.drawHeroDown(g, -2, 1, 1);
       g.generateTexture('hero_walk_1', 24, 32);
       g.destroy();
     }
     if (!this.textures.exists('hero_walk_2')) {
       const g = this.add.graphics();
-      this.drawHeroBase(g, 2, 1, true, -1);
+      this.drawHeroDown(g, 2, 1, -1);
       g.generateTexture('hero_walk_2', 24, 32);
       g.destroy();
     }
 
-    // Frame: Attack Combo 1 (Slash)
+    // Frame: Attack Combo 1 (Slash with bright cyan trail)
     if (!this.textures.exists('hero_atk_1')) {
       const g = this.add.graphics();
-      this.drawHeroBase(g, 2, 0, false, 0);
-      // Glowing blue blade slash arc
+      this.drawHeroSide(g, 2, 0, 0);
       g.fillStyle(0x38bdf8, 0.9);
       g.fillCircle(19, 14, 7);
       g.fillStyle(0xffffff, 1);
@@ -177,22 +234,22 @@ export class PreloadScene extends Phaser.Scene {
       g.destroy();
     }
 
-    // Frame: Attack Combo 2 (Horizontal Cleave)
+    // Frame: Attack Combo 2 (Horizontal Cleave with amber slash)
     if (!this.textures.exists('hero_atk_2')) {
       const g = this.add.graphics();
-      this.drawHeroBase(g, 0, 0, false, 0);
+      this.drawHeroDown(g, 0, 0, 0);
       g.fillStyle(0xf59e0b, 0.9);
-      g.fillRect(14, 12, 12, 5);
+      g.fillRect(14, 12, 13, 5);
       g.fillStyle(0xfef08a, 1);
-      g.fillRect(16, 13, 8, 3);
+      g.fillRect(16, 13, 9, 3);
       g.generateTexture('hero_atk_2', 28, 32);
       g.destroy();
     }
 
-    // Frame: Attack Combo 3 (Finisher Slam)
+    // Frame: Attack Combo 3 (Finisher Slam with radiant golden energy)
     if (!this.textures.exists('hero_atk_3')) {
       const g = this.add.graphics();
-      this.drawHeroBase(g, 0, -2, false, 0);
+      this.drawHeroDown(g, 0, -2, 0);
       g.fillStyle(0xfacc15, 1);
       g.fillRect(10, 0, 4, 18);
       g.fillStyle(0xffffff, 1);
@@ -201,23 +258,22 @@ export class PreloadScene extends Phaser.Scene {
       g.destroy();
     }
 
-    // Frame: Bulwark Guard (Shield Up)
+    // Frame: Bulwark Guard (Radiant Aegis Shield)
     if (!this.textures.exists('hero_guard')) {
       const g = this.add.graphics();
-      this.drawHeroBase(g, 0, 1, false, 0);
-      // Radiant golden barrier shield
-      g.fillStyle(0xf59e0b, 0.6);
-      g.fillCircle(12, 16, 12);
+      this.drawHeroDown(g, 0, 1, 0);
+      g.fillStyle(0xf59e0b, 0.65);
+      g.fillCircle(12, 16, 13);
       g.fillStyle(0xfef08a, 0.9);
       g.fillRect(3, 8, 18, 16);
       g.generateTexture('hero_guard', 28, 32);
       g.destroy();
     }
 
-    // Frame: Ember Cleave (Fire Spin)
+    // Frame: Ember Cleave (Whirling Fire Burst)
     if (!this.textures.exists('hero_cleave')) {
       const g = this.add.graphics();
-      this.drawHeroBase(g, 0, 0, false, 0);
+      this.drawHeroDown(g, 0, 0, 0);
       g.fillStyle(0xef4444, 0.85);
       g.fillCircle(12, 16, 14);
       g.fillStyle(0xf97316, 0.9);
@@ -228,10 +284,20 @@ export class PreloadScene extends Phaser.Scene {
       g.destroy();
     }
 
+    // Frame: Hurt
+    if (!this.textures.exists('hero_hurt')) {
+      const g = this.add.graphics();
+      this.drawHeroDown(g, 0, 0, 0);
+      g.fillStyle(0xff0000, 0.4);
+      g.fillRect(0, 0, 24, 32);
+      g.generateTexture('hero_hurt', 24, 32);
+      g.destroy();
+    }
+
     // Fallback 'knight' texture mapping
     if (!this.textures.exists('knight')) {
       const g = this.add.graphics();
-      this.drawHeroBase(g, 0, 0, false, 0);
+      this.drawHeroDown(g, 0, 0, 0);
       g.generateTexture('knight', 24, 32);
       g.destroy();
     }
@@ -358,37 +424,44 @@ export class PreloadScene extends Phaser.Scene {
     }
   }
 
-  private drawHeroBase(g: Phaser.GameObjects.Graphics, legOff: number, bodyOffY: number, isWalking: boolean, capeWave: number): void {
+  private drawHeroDown(g: Phaser.GameObjects.Graphics, legOff: number, bodyOffY: number, capeWave: number): void {
     const ox = 2;
     const oy = 2 + bodyOffY;
 
-    // Scarlet flowing cape
+    // Scarlet flowing cape behind shoulders
+    g.fillStyle(0x991b1b, 1);
+    g.fillRect(ox + 3 + capeWave, oy + 9, 14, 15);
     g.fillStyle(0xb91c1c, 1);
-    g.fillRect(ox + 3 + capeWave, oy + 10, 14, 14);
-    g.fillStyle(0xef4444, 1);
-    g.fillRect(ox + 4 + capeWave, oy + 11, 12, 11);
+    g.fillRect(ox + 4 + capeWave, oy + 10, 12, 14);
 
-    // Silver plate armor body
-    g.fillStyle(0x94a3b8, 1);
+    // Dark Steel plate armor body
+    g.fillStyle(0x334155, 1);
     g.fillRect(ox + 5, oy + 9, 10, 11);
-    g.fillStyle(0xe2e8f0, 1);
+    g.fillStyle(0x64748b, 1);
     g.fillRect(ox + 6, oy + 10, 8, 9);
-    // Golden lion crest emblem
+
+    // Golden lion crest emblem & golden pauldrons
+    g.fillStyle(0xd97706, 1);
+    g.fillRect(ox + 3, oy + 9, 3, 4);
+    g.fillRect(ox + 14, oy + 9, 3, 4);
     g.fillStyle(0xf59e0b, 1);
     g.fillRect(ox + 9, oy + 11, 2, 6);
     g.fillRect(ox + 7, oy + 13, 6, 2);
 
     // Winged Knight Helmet
-    g.fillStyle(0x64748b, 1);
+    g.fillStyle(0x334155, 1);
     g.fillRect(ox + 6, oy + 2, 8, 8);
-    g.fillStyle(0xcbd5e1, 1);
-    g.fillRect(ox + 7, oy + 2, 6, 7);
+    g.fillStyle(0x64748b, 1);
+    g.fillRect(ox + 7, oy + 3, 6, 6);
     // Glowing Cyan Visor Slit
     g.fillStyle(0x38bdf8, 1);
     g.fillRect(ox + 7, oy + 5, 6, 2);
-    // Gold Helm Crest
+    g.fillStyle(0xffffff, 1);
+    g.fillRect(ox + 9, oy + 5, 2, 1);
+    // Gold Helm Wings
     g.fillStyle(0xf59e0b, 1);
-    g.fillRect(ox + 6, oy + 1, 8, 2);
+    g.fillRect(ox + 5, oy + 1, 10, 2);
+    g.fillRect(ox + 9, oy + 0, 2, 3);
 
     // Golden Shield on Left Arm
     g.fillStyle(0xb45309, 1);
@@ -396,12 +469,94 @@ export class PreloadScene extends Phaser.Scene {
     g.fillStyle(0xfbbf24, 1);
     g.fillRect(ox + 2, oy + 11, 2, 8);
 
-    // Armored Legs
-    g.fillStyle(0x334155, 1);
+    // Armored Legs & Greaves
+    g.fillStyle(0x1e293b, 1);
     g.fillRect(ox + 5 + legOff, oy + 20, 4, 6);
     g.fillRect(ox + 11 - legOff, oy + 20, 4, 6);
-    g.fillStyle(0x94a3b8, 1);
+    g.fillStyle(0x64748b, 1);
     g.fillRect(ox + 5 + legOff, oy + 24, 4, 2);
     g.fillRect(ox + 11 - legOff, oy + 24, 4, 2);
+  }
+
+  private drawHeroUp(g: Phaser.GameObjects.Graphics, legOff: number, bodyOffY: number, capeWave: number): void {
+    const ox = 2;
+    const oy = 2 + bodyOffY;
+
+    // Full Scarlet Flowing Cape
+    g.fillStyle(0x7f1d1d, 1);
+    g.fillRect(ox + 3 + capeWave, oy + 8, 14, 16);
+    g.fillStyle(0x991b1b, 1);
+    g.fillRect(ox + 4 + capeWave, oy + 9, 12, 15);
+    g.fillStyle(0xb91c1c, 1);
+    g.fillRect(ox + 6 + capeWave, oy + 10, 8, 13);
+
+    // Helm Back
+    g.fillStyle(0x334155, 1);
+    g.fillRect(ox + 6, oy + 2, 8, 7);
+    g.fillStyle(0x475569, 1);
+    g.fillRect(ox + 7, oy + 3, 6, 5);
+    // Gold Wings Back
+    g.fillStyle(0xf59e0b, 1);
+    g.fillRect(ox + 5, oy + 1, 10, 2);
+    g.fillRect(ox + 9, oy + 0, 2, 3);
+
+    // Gold Pauldrons Edges
+    g.fillStyle(0xd97706, 1);
+    g.fillRect(ox + 3, oy + 8, 3, 4);
+    g.fillRect(ox + 14, oy + 8, 3, 4);
+
+    // Armored Legs
+    g.fillStyle(0x1e293b, 1);
+    g.fillRect(ox + 5 + legOff, oy + 22, 4, 4);
+    g.fillRect(ox + 11 - legOff, oy + 22, 4, 4);
+  }
+
+  private drawHeroSide(g: Phaser.GameObjects.Graphics, legOff: number, bodyOffY: number, capeWave: number): void {
+    const ox = 2;
+    const oy = 2 + bodyOffY;
+
+    // Flowing Cape Behind
+    g.fillStyle(0x991b1b, 1);
+    g.fillRect(ox + 1 + capeWave, oy + 9, 7, 15);
+    g.fillStyle(0xb91c1c, 1);
+    g.fillRect(ox + 2 + capeWave, oy + 10, 5, 13);
+
+    // Steel Plate Armor Profile
+    g.fillStyle(0x334155, 1);
+    g.fillRect(ox + 6, oy + 9, 9, 11);
+    g.fillStyle(0x64748b, 1);
+    g.fillRect(ox + 7, oy + 10, 7, 9);
+    g.fillStyle(0xd97706, 1);
+    g.fillRect(ox + 8, oy + 9, 4, 3);
+
+    // Winged Helm Profile
+    g.fillStyle(0x334155, 1);
+    g.fillRect(ox + 6, oy + 2, 9, 7);
+    g.fillStyle(0x64748b, 1);
+    g.fillRect(ox + 8, oy + 3, 6, 6);
+    g.fillStyle(0x38bdf8, 1);
+    g.fillRect(ox + 12, oy + 4, 3, 2);
+    g.fillStyle(0xf59e0b, 1);
+    g.fillRect(ox + 7, oy + 1, 6, 2);
+
+    // Raised Broadsword
+    g.fillStyle(0xe2e8f0, 1);
+    g.fillRect(ox + 15, oy + 4, 2, 10);
+    g.fillStyle(0xf59e0b, 1);
+    g.fillRect(ox + 13, oy + 12, 5, 2);
+
+    // Golden Shield on Shoulder
+    g.fillStyle(0xb45309, 1);
+    g.fillRect(ox + 5, oy + 10, 4, 9);
+    g.fillStyle(0xfbbf24, 1);
+    g.fillRect(ox + 6, oy + 11, 2, 7);
+
+    // Walking Legs
+    g.fillStyle(0x1e293b, 1);
+    g.fillRect(ox + 6 + legOff, oy + 20, 4, 6);
+    g.fillRect(ox + 10 - legOff, oy + 20, 4, 6);
+    g.fillStyle(0x64748b, 1);
+    g.fillRect(ox + 6 + legOff, oy + 24, 4, 2);
+    g.fillRect(ox + 10 - legOff, oy + 24, 4, 2);
   }
 }

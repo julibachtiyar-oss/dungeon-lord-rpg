@@ -1,4 +1,4 @@
-﻿import Phaser from 'phaser';
+import Phaser from 'phaser';
 import { Entity } from './Entity';
 import { BALANCE } from '../config/balance';
 import { EventBus } from '../events';
@@ -47,8 +47,9 @@ export class Player extends Entity {
     this.maxHp = BALANCE.player.maxHp;
 
     const body = this.body as Phaser.Physics.Arcade.Body;
-    body.setSize(16, 20);
-    body.setOffset(4, 10);
+    // GDD §3.1 & AGENTS.md rule 78: 10x8 collider offset to feet
+    body.setSize(10, 8);
+    body.setOffset(7, 22);
     body.setCollideWorldBounds(true);
 
     // Attached sword for weapon sweep
@@ -165,21 +166,44 @@ export class Player extends Entity {
   private updateVisualFrame(time: number): void {
     if (this.currentState === 'attack1') {
       this.setTexture('hero_atk_1');
-    } else if (this.currentState === 'attack2') {
+      return;
+    }
+    if (this.currentState === 'attack2') {
       this.setTexture('hero_atk_2');
-    } else if (this.currentState === 'attack3') {
+      return;
+    }
+    if (this.currentState === 'attack3') {
       this.setTexture('hero_atk_3');
-    } else if (this.currentState === 'cleave') {
+      return;
+    }
+    if (this.currentState === 'cleave') {
       this.setTexture('hero_cleave');
-    } else if (this.currentState === 'bulwark') {
+      return;
+    }
+    if (this.currentState === 'bulwark') {
       this.setTexture('hero_guard');
-    } else if (this.currentState === 'dash') {
-      this.setTexture('hero_walk_1');
-    } else if (this.currentState === 'run') {
-      const step = Math.floor(time / 140) % 2;
-      this.setTexture(step === 0 ? 'hero_walk_1' : 'hero_walk_2');
+      return;
+    }
+    if (this.currentState === 'hurt') {
+      this.setTexture('hero_hurt');
+      return;
+    }
+
+    const isFacingUp = this.facing.y < -0.4;
+    const isFacingDown = this.facing.y > 0.4;
+    const dir = isFacingUp ? 'up' : isFacingDown ? 'down' : 'side';
+
+    if (this.currentState === 'dash') {
+      this.setTexture(`hero_walk_${dir}_1`);
+      return;
+    }
+
+    if (this.currentState === 'run') {
+      const step = Math.floor(time / 130) % 2;
+      const frameNum = step === 0 ? '1' : '2';
+      this.setTexture(`hero_walk_${dir}_${frameNum}`);
     } else {
-      this.setTexture('hero_idle');
+      this.setTexture(`hero_idle_${dir}`);
     }
   }
 

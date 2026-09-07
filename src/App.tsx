@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Phaser from 'phaser';
 import { createGameConfig } from './game/config/game.config';
 import { BootScene } from './game/scenes/BootScene';
@@ -122,6 +122,11 @@ export default function App() {
       setGameState('gameover');
     };
 
+    const onState = (s: any) => {
+      setGameState(s);
+    };
+
+    EventBus.onEvent('game:state', onState);
     EventBus.onEvent('player:stats', onStats);
     EventBus.onEvent('player:gold', onGoldEarned);
     EventBus.onEvent('player:skills', onSkillsUpdate);
@@ -132,6 +137,7 @@ export default function App() {
     EventBus.onEvent('game:over', onOver);
 
     return () => {
+      EventBus.offEvent('game:state', onState);
       EventBus.offEvent('player:stats', onStats);
       EventBus.offEvent('player:gold', onGoldEarned);
       EventBus.offEvent('player:skills', onSkillsUpdate);
@@ -151,6 +157,7 @@ export default function App() {
   // Handlers for Town Facilities
   const handleEnterDungeon = () => {
     setGameState('playing');
+    BGM.playDungeon();
     EventBus.emitEvent('game:start', undefined as unknown as void);
   };
 
@@ -208,7 +215,16 @@ export default function App() {
 
         {/* 1. Title Screen Overlay */}
         {gameState === 'title' && (
-          <TitleOverlay />
+          <TitleOverlay
+            onStart={() => {
+              setGameState('town');
+              BGM.playTown();
+            }}
+            onPrologue={() => {
+              setGameState('prologue');
+            }}
+            onDirectDungeon={handleEnterDungeon}
+          />
         )}
 
         {/* 2. Prologue Isekai Cutscene */}
