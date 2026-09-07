@@ -8,9 +8,10 @@ interface TitleOverlayProps {
   onStart?: () => void;
   onPrologue?: () => void;
   onDirectDungeon?: () => void;
+  onOpenSanctuary?: () => void;
 }
 
-export default function TitleOverlay({ onStart, onPrologue, onDirectDungeon }: TitleOverlayProps) {
+export default function TitleOverlay({ onStart, onPrologue, onDirectDungeon, onOpenSanctuary }: TitleOverlayProps) {
   const [bestScore, setBestScore] = useState<number>(0);
   const [bestTime, setBestTime] = useState<number>(0);
   const [showCodex, setShowCodex] = useState(false);
@@ -60,6 +61,17 @@ export default function TitleOverlay({ onStart, onPrologue, onDirectDungeon }: T
       onDirectDungeon();
     } else {
       EventBus.emitEvent('game:start', undefined as unknown as void);
+    }
+  };
+
+  const handleStartSanctuary = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    unlockAudio();
+    SFX.uiTap();
+    if (onOpenSanctuary) {
+      onOpenSanctuary();
+    } else {
+      EventBus.emitEvent('game:state', 'sanctuary');
     }
   };
 
@@ -144,13 +156,29 @@ export default function TitleOverlay({ onStart, onPrologue, onDirectDungeon }: T
           </p>
         </div>
 
-        {/* Story & Controls Quick Access */}
-        <div className="flex items-center justify-center gap-2 pt-1 pointer-events-auto">
+        {/* Story & Quick Access Grid */}
+        <div className="grid grid-cols-2 gap-2 pt-1 pointer-events-auto">
+          <button
+            onClick={handleStartSanctuary}
+            className="py-2.5 px-3 rounded-xl bg-gradient-to-r from-purple-950/90 to-indigo-950/90 hover:brightness-125 border border-purple-500/60 text-purple-200 text-[11px] font-black uppercase tracking-wider font-fantasy active:scale-95 transition-all flex items-center justify-center gap-1.5 backdrop-blur-md shadow-md shadow-purple-950/50"
+          >
+            <Sparkles size={13} className="text-yellow-400" />
+            <span>DUNGEON SAYA (48P)</span>
+          </button>
+
+          <button
+            onClick={handleDirectDungeon}
+            className="py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-950/90 to-orange-950/90 hover:brightness-125 border border-amber-500/60 text-amber-200 text-[11px] font-black uppercase tracking-wider font-fantasy active:scale-95 transition-all flex items-center justify-center gap-1.5 backdrop-blur-md shadow-md shadow-amber-950/50"
+          >
+            <Swords size={13} className="text-amber-400" />
+            <span>EKSPEDISI LANTAI 1</span>
+          </button>
+
           <button
             onClick={handleStartPrologue}
-            className="flex-1 py-2 px-3 rounded-xl bg-black/80 hover:bg-black/95 border border-amber-500/40 text-amber-300 text-[11px] font-bold uppercase tracking-wider font-fantasy active:scale-95 transition-all flex items-center justify-center gap-1.5 backdrop-blur-md"
+            className="py-2 px-3 rounded-xl bg-black/80 hover:bg-black/95 border border-slate-700 text-slate-300 text-[10px] font-bold uppercase tracking-wider font-fantasy active:scale-95 transition-all flex items-center justify-center gap-1.5 backdrop-blur-md"
           >
-            <BookOpen size={13} />
+            <BookOpen size={12} />
             <span>Prolog Kisah</span>
           </button>
 
@@ -160,10 +188,10 @@ export default function TitleOverlay({ onStart, onPrologue, onDirectDungeon }: T
               unlockAudio();
               setShowCodex(true);
             }}
-            className="py-2 px-3 rounded-xl bg-black/80 hover:bg-black/95 border border-slate-700 text-slate-300 text-[11px] font-bold uppercase tracking-wider font-fantasy active:scale-95 transition-all flex items-center justify-center gap-1.5 backdrop-blur-md"
+            className="py-2 px-3 rounded-xl bg-black/80 hover:bg-black/95 border border-slate-700 text-slate-300 text-[10px] font-bold uppercase tracking-wider font-fantasy active:scale-95 transition-all flex items-center justify-center gap-1.5 backdrop-blur-md"
           >
-            <HelpCircle size={13} />
-            <span>Panduan</span>
+            <HelpCircle size={12} />
+            <span>Panduan & Hero</span>
           </button>
         </div>
       </div>

@@ -1,4 +1,4 @@
-﻿import Phaser from 'phaser';
+import Phaser from 'phaser';
 import { SceneKey } from '../config/keys';
 import { EventBus } from '../events';
 
@@ -18,6 +18,18 @@ export class UIBridgeScene extends Phaser.Scene {
           gameScene.scene.resume();
           EventBus.emitEvent('game:state', 'playing');
         }
+      }
+    });
+
+    EventBus.onEvent('game:start', () => {
+      if (this.scene.isActive(SceneKey.Title)) {
+        this.scene.stop(SceneKey.Title);
+      }
+      const gameScene = this.scene.get(SceneKey.Game);
+      if (gameScene && this.scene.isActive(SceneKey.Game)) {
+        gameScene.scene.restart();
+      } else {
+        this.scene.start(SceneKey.Game);
       }
     });
 

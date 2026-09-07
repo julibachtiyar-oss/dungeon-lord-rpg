@@ -1,4 +1,4 @@
-﻿import Phaser from 'phaser';
+import Phaser from 'phaser';
 import { SceneKey } from '../config/keys';
 import { Player } from '../entities/Player';
 import { Enemy } from '../entities/enemies/Enemy';
@@ -55,6 +55,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   create(): void {
+    this.currentFloorNumber = 1;
     this.runStartTime = Date.now();
     this.totalKills = 0;
     this.totalDamageTaken = 0;
@@ -67,7 +68,7 @@ export class GameScene extends Phaser.Scene {
     this.rooms = new RoomManager();
 
     this.setupGroups();
-    this.loadFloor(this.currentFloorNumber);
+    this.loadFloor(1);
 
     EventBus.emitEvent('game:state', 'playing');
 

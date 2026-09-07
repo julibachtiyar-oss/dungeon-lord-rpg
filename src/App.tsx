@@ -224,6 +224,9 @@ export default function App() {
               setGameState('prologue');
             }}
             onDirectDungeon={handleEnterDungeon}
+            onOpenSanctuary={() => {
+              setGameState('sanctuary');
+            }}
           />
         )}
 
@@ -254,12 +257,22 @@ export default function App() {
           />
         )}
 
-        {/* 4. Dungeon Sanctuary (Player's Conquered Home Base) */}
+        {/* 4. Dungeon Sanctuary (Player's Conquered Home Base: 48-Tile Tycoon Mode) */}
         {gameState === 'sanctuary' && (
           <DungeonSanctuary
+            gold={gold}
             coreCrystals={coreCrystals}
-            sanctuaryUpgrades={sanctuaryUpgrades}
-            onUpgrade={handleSanctuaryUpgrade}
+            potions={playerStats.potions}
+            onUpdateCurrency={(goldDelta, crystalDelta, potionDelta) => {
+              if (goldDelta !== 0) setGold((g) => Math.max(0, g + goldDelta));
+              if (crystalDelta !== 0) setCoreCrystals((c) => Math.max(0, c + crystalDelta));
+              if (potionDelta !== 0) {
+                setPlayerStats((p) => ({
+                  ...p,
+                  potions: Math.min(5, Math.max(0, p.potions + potionDelta))
+                }));
+              }
+            }}
             onBackToTown={() => {
               setGameState('town');
               BGM.playTown();
