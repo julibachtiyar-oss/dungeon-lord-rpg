@@ -24,7 +24,7 @@ export class PreloadScene extends Phaser.Scene {
 
   create(): void {
     this.scene.start(SceneKey.Title);
-    this.scene.start(SceneKey.UIBridge);
+    this.scene.launch(SceneKey.UIBridge);
   }
 
   private createProceduralTextures(): void {

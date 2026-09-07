@@ -29,7 +29,7 @@ export class UIBridgeScene extends Phaser.Scene {
       if (gameScene && this.scene.isActive(SceneKey.Game)) {
         gameScene.scene.restart();
       } else {
-        this.scene.start(SceneKey.Game);
+        this.scene.launch(SceneKey.Game);
       }
     });
 
@@ -37,6 +37,12 @@ export class UIBridgeScene extends Phaser.Scene {
       const gameScene = this.scene.get(SceneKey.Game);
       if (gameScene) {
         gameScene.scene.restart();
+      }
+    });
+
+    EventBus.onEvent('game:stop', () => {
+      if (this.scene.isActive(SceneKey.Game)) {
+        this.scene.stop(SceneKey.Game);
       }
     });
   }

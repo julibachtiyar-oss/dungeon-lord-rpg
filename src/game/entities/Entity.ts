@@ -1,4 +1,4 @@
-﻿import Phaser from 'phaser';
+import Phaser from 'phaser';
 
 export class Entity extends Phaser.Physics.Arcade.Sprite {
   public hp: number = 100;
@@ -36,7 +36,7 @@ export class Entity extends Phaser.Physics.Arcade.Sprite {
 
     // Hit flash reaction (GDD §8: 80 ms white flash)
     this.setTint(0xffffff);
-    this.flashUntil = this.scene.time.now + 80;
+    this.flashUntil = (this.scene?.time?.now ?? Date.now()) + 80;
 
     // Apply knockback
     if (knockX !== 0 || knockY !== 0) {

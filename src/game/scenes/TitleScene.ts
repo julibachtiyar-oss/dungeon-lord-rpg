@@ -1,4 +1,4 @@
-﻿import Phaser from 'phaser';
+import Phaser from 'phaser';
 import { SceneKey } from '../config/keys';
 import { EventBus } from '../events';
 
@@ -27,9 +27,5 @@ export class TitleScene extends Phaser.Scene {
     });
 
     EventBus.emitEvent('game:state', 'title');
-
-    EventBus.onEvent('game:start', () => {
-      this.scene.start(SceneKey.Game);
-    }, this);
   }
 }

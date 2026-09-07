@@ -65,9 +65,10 @@ export class Player extends Entity {
     bulwarkPressed: boolean,
     dashPressed: boolean,
     potionPressed: boolean,
-    nearestEnemyPos: { x: number; y: number } | null
+    nearestEnemyPos: { x: number; y: number } | null,
+    timeInput?: number
   ): void {
-    const time = this.scene.time.now;
+    const time = timeInput ?? (this.scene?.time?.now ?? Date.now());
 
     // Healing Potion
     if (potionPressed && this.potions > 0 && this.hp < this.maxHp && this.currentState !== 'dead') {
@@ -247,7 +248,9 @@ export class Player extends Entity {
     this.applyAutoAim(enemyPos);
     SFX.cleave();
     this.setTint(0xffaa00);
-    this.scene.time.delayedCall(cleave.startup, () => this.clearTint());
+    if (this.scene?.time) {
+      this.scene.time.delayedCall(cleave.startup, () => this.clearTint());
+    }
   }
 
   private startBulwark(time: number): void {
@@ -277,15 +280,17 @@ export class Player extends Entity {
 
     // Afterimage ghost effect
     this.createAfterimage();
-    this.scene.time.delayedCall(60, () => this.createAfterimage());
-    this.scene.time.delayedCall(120, () => this.createAfterimage());
-
-    this.scene.time.delayedCall(dash.duration, () => {
-      this.isInvulnerable = false;
-    });
+    if (this.scene?.time) {
+      this.scene.time.delayedCall(60, () => this.createAfterimage());
+      this.scene.time.delayedCall(120, () => this.createAfterimage());
+      this.scene.time.delayedCall(dash.duration, () => {
+        this.isInvulnerable = false;
+      });
+    }
   }
 
   private createAfterimage(): void {
+    if (!this.scene?.add || !this.scene?.tweens) return;
     const ghost = this.scene.add.sprite(this.x, this.y, this.texture.key);
     ghost.setFlipX(this.flipX);
     ghost.setAlpha(0.65);
@@ -310,6 +315,7 @@ export class Player extends Entity {
   }
 
   private triggerWeaponSweep(hitIndex: number): void {
+    if (!this.swordSprite || !this.scene?.tweens) return;
     this.swordSprite.setVisible(true);
     const startAngle = hitIndex === 1 ? -45 : hitIndex === 2 ? 45 : -80;
     const endAngle = hitIndex === 1 ? 45 : hitIndex === 2 ? -45 : 80;
@@ -322,18 +328,22 @@ export class Player extends Entity {
       duration: 120,
       ease: 'Power1',
       onComplete: () => {
-        this.swordSprite.setVisible(false);
+        if (this.swordSprite) {
+          this.swordSprite.setVisible(false);
+        }
       }
     });
   }
 
   public override takeDamage(damage: number, knockX: number = 0, knockY: number = 0): boolean {
-    const time = this.scene.time.now;
+    const time = this.scene?.time?.now ?? Date.now();
 
     // Bulwark Parry Check
     if (this.currentState === 'bulwark' && time < this.bulwarkActiveUntil) {
       SFX.parry();
-      this.scene.cameras.main.shake(100, 0.008);
+      if (this.scene?.cameras?.main) {
+        this.scene.cameras.main.shake(100, 0.008);
+      }
       return false; // 0 damage!
     }
 

@@ -15,6 +15,7 @@ interface Props {
 
 export default function ResultScreen({ data }: Props) {
   const handlePlayAgain = () => {
+    EventBus.emitEvent('game:stop', undefined as unknown as void);
     EventBus.emitEvent('game:state', 'town');
     BGM.playTown();
   };

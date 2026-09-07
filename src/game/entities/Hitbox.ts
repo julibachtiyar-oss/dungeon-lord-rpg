@@ -1,4 +1,4 @@
-﻿import Phaser from 'phaser';
+import Phaser from 'phaser';
 
 export class Hitbox extends Phaser.GameObjects.Zone {
   public damage: number = 10;
@@ -35,7 +35,7 @@ export class Hitbox extends Phaser.GameObjects.Zone {
     this.isCleave = isCleave;
     this.sourceX = x;
     this.sourceY = y;
-    this.activeUntil = this.scene.time.now + duration;
+    this.activeUntil = (this.scene?.time?.now ?? Date.now()) + duration;
 
     const body = this.body as Phaser.Physics.Arcade.Body;
     body.setSize(w, h);

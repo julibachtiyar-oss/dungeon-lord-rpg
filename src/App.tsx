@@ -333,8 +333,10 @@ export default function App() {
               </p>
               <button
                 onClick={() => {
+                  EventBus.emitEvent('game:stop', undefined as unknown as void);
                   setGameState('town');
                   BGM.playTown();
+                  setPlayerStats((p) => ({ ...p, hp: p.maxHp }));
                 }}
                 className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-black text-xs uppercase tracking-wider active:scale-95 shadow-lg shadow-red-900/50 flex items-center justify-center gap-2 font-fantasy border border-red-400"
               >

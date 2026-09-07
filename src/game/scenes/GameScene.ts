@@ -49,9 +49,27 @@ export class GameScene extends Phaser.Scene {
   private totalKills: number = 0;
   private totalDamageTaken: number = 0;
   private lastMapEmitTime: number = 0;
+  private onPlayerDamaged?: (p: { damage: number; currentHp: number }) => void;
+  private onBossDefeated?: () => void;
 
   constructor() {
     super(SceneKey.Game);
+  }
+
+  init(): void {
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.shutdown, this);
+  }
+
+  private shutdown(): void {
+    if (this.onPlayerDamaged) EventBus.offEvent('player:damaged', this.onPlayerDamaged);
+    if (this.onBossDefeated) EventBus.offEvent('boss:defeated', this.onBossDefeated);
+    if (this.player) {
+      if (this.player.swordSprite) {
+        this.player.swordSprite.destroy();
+      }
+      this.player.destroy();
+      this.player = null as any;
+    }
   }
 
   create(): void {
@@ -60,6 +78,7 @@ export class GameScene extends Phaser.Scene {
     this.totalKills = 0;
     this.totalDamageTaken = 0;
     this.lastMapEmitTime = 0;
+    this.player = null as any;
 
     this.feel = new FeelManager(this);
     this.particles = new ParticleSystem(this);
@@ -73,14 +92,16 @@ export class GameScene extends Phaser.Scene {
     EventBus.emitEvent('game:state', 'playing');
 
     // Listen to damage for tracking
-    EventBus.onEvent('player:damaged', (p) => {
+    this.onPlayerDamaged = (p) => {
       this.totalDamageTaken += p.damage;
-    }, this);
+    };
+    EventBus.onEvent('player:damaged', this.onPlayerDamaged, this);
 
     // Listen to boss defeat for Beat 5 & Victory
-    EventBus.onEvent('boss:defeated', () => {
+    this.onBossDefeated = () => {
       this.handleBossDefeated();
-    }, this);
+    };
+    EventBus.onEvent('boss:defeated', this.onBossDefeated, this);
   }
 
   private setupGroups(): void {
@@ -133,15 +154,33 @@ export class GameScene extends Phaser.Scene {
     // 2. Render 100% interconnected floor geometry & outer perimeter walls
     this.renderFloorGeometry(this.floorData);
 
-    // 3. Spawn or reposition Player
-    if (!this.player) {
-      this.player = new Player(this, this.floorData.playerSpawn.x, this.floorData.playerSpawn.y);
-      this.cameras.main.startFollow(this.player, true, 0.15, 0.15);
-      this.cameras.main.setZoom(1.0);
-    } else {
-      this.player.setPosition(this.floorData.playerSpawn.x, this.floorData.playerSpawn.y);
-      this.cameras.main.startFollow(this.player, true, 0.15, 0.15);
+    // 3. Cleanly recreate Player attached to current scene
+    const prevHp = this.player?.hp;
+    const prevPotions = this.player?.potions;
+    const prevGold = this.player?.gold;
+    const prevLevel = this.player?.level;
+    const prevXp = this.player?.xp;
+    const prevWeaponTier = this.player?.weaponTier;
+
+    if (this.player) {
+      if (this.player.swordSprite) {
+        this.player.swordSprite.destroy();
+      }
+      this.player.destroy();
+      this.player = null as any;
     }
+
+    this.player = new Player(this, this.floorData.playerSpawn.x, this.floorData.playerSpawn.y);
+    if (prevHp !== undefined && floorNum > 1) {
+      this.player.hp = prevHp;
+      this.player.potions = prevPotions!;
+      this.player.gold = prevGold!;
+      this.player.level = prevLevel!;
+      this.player.xp = prevXp!;
+      this.player.weaponTier = prevWeaponTier!;
+    }
+    this.cameras.main.startFollow(this.player, true, 0.15, 0.15);
+    this.cameras.main.setZoom(1.0);
 
     // 4. Spawn Enemies and Chests per room
     for (const room of this.floorData.rooms) {
@@ -326,7 +365,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   update(time: number, delta: number): void {
-    if (!this.player || this.player.currentState === 'dead') return;
+    if (!this.player || !this.player.active || this.player.currentState === 'dead') return;
 
     // Follow player with torch lantern light
     if (this.playerLight) {
@@ -367,11 +406,12 @@ export class GameScene extends Phaser.Scene {
       inputState.bulwark,
       inputState.dash,
       inputState.potion,
-      enemyPos
+      enemyPos,
+      time
     );
 
     // Sync sword position
-    if (this.player.swordSprite.visible) {
+    if (this.player.swordSprite && this.player.swordSprite.visible) {
       this.player.swordSprite.setPosition(
         this.player.x + this.player.facing.x * 12,
         this.player.y + this.player.facing.y * 12
