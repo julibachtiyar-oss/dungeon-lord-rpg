@@ -24,6 +24,7 @@ export default function DungeonSanctuaryMap({
   onUpdateGrid,
   gold,
   gems,
+  coreCrystals = 0,
   onAddRewards,
   onAddLoot,
   heroClass
@@ -59,7 +60,7 @@ export default function DungeonSanctuaryMap({
     }
     const nextGrid = [...gridState];
     nextGrid[selectedCellIdx] = 'empty';
-    onUpdateGrid(nextGrid, 0, 0);
+    onUpdateGrid(nextGrid, 0, 0, 0);
     setSelectedCellIdx(null);
   };
 
@@ -315,7 +316,11 @@ export default function DungeonSanctuaryMap({
     const bDef = BUILDING_TYPES[buildingKey];
     if (!bDef) return;
 
-    if (gold < (bDef.costGold || 0) || gems < (bDef.costGems || 0)) {
+    if (
+      gold < (bDef.costGold || 0) || 
+      gems < (bDef.costGems || 0) || 
+      (coreCrystals || 0) < (bDef.costCrystals || 0)
+    ) {
       sound.playAttackMelee();
       return;
     }
@@ -323,7 +328,7 @@ export default function DungeonSanctuaryMap({
     sound.playLevelUp();
     const nextGrid = [...gridState];
     nextGrid[selectedCellIdx] = buildingKey;
-    onUpdateGrid(nextGrid, bDef.costGold || 0, bDef.costGems || 0);
+    onUpdateGrid(nextGrid, bDef.costGold || 0, bDef.costGems || 0, bDef.costCrystals || 0);
     setSelectedCellIdx(null);
   };
 
@@ -518,7 +523,10 @@ export default function DungeonSanctuaryMap({
                 {Object.entries(BUILDING_TYPES)
                   .filter(([k, b]) => !b.fixed && k !== 'empty' && k !== selectedBuilding.id)
                   .map(([bKey, bDef]) => {
-                    const canAfford = gold >= (bDef.costGold || 0) && gems >= (bDef.costGems || 0);
+                    const canAfford = 
+                      gold >= (bDef.costGold || 0) && 
+                      gems >= (bDef.costGems || 0) &&
+                      (coreCrystals || 0) >= (bDef.costCrystals || 0);
 
                     return (
                       <button
@@ -538,17 +546,17 @@ export default function DungeonSanctuaryMap({
                           <span className="text-[11px] font-bold text-white truncate">{bDef.name}</span>
                         </div>
 
-                        <div className="flex items-center gap-2 text-[10px] font-black mt-1">
+                        <div className="flex flex-wrap items-center gap-2 text-[10px] font-black mt-1">
+                          {(bDef.costCrystals || 0) > 0 && (
+                            <div className="flex items-center gap-0.5 text-purple-300">
+                              <Sparkles size={11} className="text-purple-400" />
+                              <span>{bDef.costCrystals} Inti</span>
+                            </div>
+                          )}
                           <div className="flex items-center gap-0.5 text-gold-400">
                             <Coins size={11} />
                             <span>{bDef.costGold}</span>
                           </div>
-                          {bDef.costGems > 0 && (
-                            <div className="flex items-center gap-0.5 text-purple-300">
-                              <Sparkles size={11} />
-                              <span>{bDef.costGems}</span>
-                            </div>
-                          )}
                         </div>
                       </button>
                     );

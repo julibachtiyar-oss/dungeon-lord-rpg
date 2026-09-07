@@ -51,13 +51,21 @@ export default function StoryDialogueModal({ isOpen, dialogueList, onFinish }) {
       <div className="w-full max-w-lg mx-auto bg-dungeon-900/95 border-2 border-gold-500/80 rounded-3xl p-4 shadow-2xl shadow-black relative overflow-hidden flex items-start gap-3">
         {/* Character Portrait Avatar */}
         <div
-          className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl border-2 shadow-xl shrink-0"
+          className="w-20 h-20 rounded-2xl overflow-hidden flex items-center justify-center border-2 border-gold-400 shadow-2xl shrink-0 bg-dungeon-950 relative"
           style={{
-            backgroundColor: `${currentDialogue.avatarColor || '#eab308'}25`,
             borderColor: currentDialogue.avatarColor || '#eab308'
           }}
         >
-          {currentDialogue.avatar || '🧙‍♂️'}
+          {currentDialogue.avatarImg ? (
+            <img
+              src={currentDialogue.avatarImg}
+              alt={currentDialogue.speaker}
+              className="w-full h-full object-cover object-top"
+              style={{ imageRendering: 'pixelated' }}
+            />
+          ) : (
+            <span className="text-3xl">{currentDialogue.avatar || '🧙‍♂️'}</span>
+          )}
         </div>
 
         {/* Text Area */}

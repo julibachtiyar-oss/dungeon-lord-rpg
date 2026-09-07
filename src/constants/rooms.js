@@ -76,8 +76,8 @@ export const DUNGEON_ROOMS_TEMPLATE = [
 export const DUNGEON_FLOORS = [
   {
     floorNumber: 1,
-    name: 'Lantai 1: Gua Goblin Hijau',
-    subtitle: 'Goblin Moss Caves',
+    name: 'Misi 1: Whispering Ruins',
+    subtitle: 'Gua Reruntuhan Kuno Berbisik',
     monsterPool: ['slime', 'goblin'],
     bossType: 'boss_gargoyle',
     requiredLevel: 1,
@@ -85,7 +85,8 @@ export const DUNGEON_FLOORS = [
     color: '#22c55e',
     ambientColor: '#0a1a12',
     roomsCount: 4,
-    recommendedAtk: 25
+    recommendedAtk: 25,
+    rewardCore: 1
   },
   {
     floorNumber: 2,

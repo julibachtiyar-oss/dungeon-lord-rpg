@@ -14,6 +14,11 @@ export function useGameState() {
     const defaultState = {
       gold: 250,
       gems: 10,
+      coreCrystals: 2, // Kristal Inti Dungeon untuk upgrade rumah
+      playerName: 'Ren',
+      adventurerRank: 'F',
+      storyChapter: 0, // 0: Prologue, 1: Valenrock Town / Quest 1, 2: Dungeon Core Claimed, 3: Overlord
+      dungeonHomeUnlocked: false,
       unclaimedGold: 0,
       lastSaved: Date.now(),
       heroClassId: 'warrior',
@@ -57,6 +62,11 @@ export function useGameState() {
         return {
           ...defaultState,
           ...parsed,
+          coreCrystals: parsed.coreCrystals !== undefined ? parsed.coreCrystals : defaultState.coreCrystals,
+          playerName: parsed.playerName || defaultState.playerName,
+          adventurerRank: parsed.adventurerRank || defaultState.adventurerRank,
+          storyChapter: parsed.storyChapter !== undefined ? parsed.storyChapter : defaultState.storyChapter,
+          dungeonHomeUnlocked: parsed.dungeonHomeUnlocked !== undefined ? parsed.dungeonHomeUnlocked : defaultState.dungeonHomeUnlocked,
           gridState: parsed.gridState && parsed.gridState.length === 48 ? parsed.gridState : defaultState.gridState,
           rooms: mergedRooms,
           unclaimedGold: (parsed.unclaimedGold || 0) + offlineGold,
@@ -192,11 +202,12 @@ export function useGameState() {
     }));
   }, []);
 
-  const updateGrid = useCallback((newGrid, costGold, costGems) => {
+  const updateGrid = useCallback((newGrid, costGold = 0, costGems = 0, costCrystals = 0) => {
     setGameState(prev => ({
       ...prev,
       gold: Math.max(0, prev.gold - costGold),
       gems: Math.max(0, prev.gems - costGems),
+      coreCrystals: Math.max(0, (prev.coreCrystals || 0) - costCrystals),
       gridState: newGrid
     }));
   }, []);
@@ -434,6 +445,44 @@ export function useGameState() {
     });
   }, []);
 
+  const addCoreCrystals = useCallback((amount) => {
+    setGameState(prev => ({
+      ...prev,
+      coreCrystals: (prev.coreCrystals || 0) + amount
+    }));
+  }, []);
+
+  const setPlayerProfile = useCallback((name, classId) => {
+    setGameState(prev => ({
+      ...prev,
+      playerName: name || prev.playerName,
+      heroClassId: classId || prev.heroClassId,
+      storyChapter: Math.max(1, prev.storyChapter || 1),
+      prologueSeen: true
+    }));
+  }, []);
+
+  const advanceStory = useCallback((nextChapter) => {
+    setGameState(prev => ({
+      ...prev,
+      storyChapter: nextChapter,
+      dungeonHomeUnlocked: nextChapter >= 2 ? true : prev.dungeonHomeUnlocked,
+      adventurerRank: nextChapter >= 3 ? 'E' : prev.adventurerRank
+    }));
+  }, []);
+
+  const buyPotions = useCallback((count, costGold) => {
+    setGameState(prev => {
+      if (prev.gold < costGold) return prev;
+      sound.playCoinCollect();
+      return {
+        ...prev,
+        gold: prev.gold - costGold,
+        potionsCount: (prev.potionsCount || 0) + count
+      };
+    });
+  }, []);
+
   const markPrologueSeen = useCallback(() => {
     setGameState(prev => ({
       ...prev,
@@ -468,6 +517,10 @@ export function useGameState() {
     resetTalents,
     enhanceEquipment,
     socketGem,
-    claimBounty
+    claimBounty,
+    addCoreCrystals,
+    setPlayerProfile,
+    advanceStory,
+    buyPotions
   };
 }

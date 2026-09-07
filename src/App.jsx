@@ -32,6 +32,8 @@ import TitleScreen from './components/TitleScreen';
 import StoryDialogueModal from './components/StoryDialogueModal';
 import AudioSettingsModal from './components/AudioSettingsModal';
 import BountyBoardModal from './components/BountyBoardModal';
+import TownHub from './components/TownHub';
+import PrologueModal from './components/PrologueModal';
 import { DUNGEON_FLOORS } from './constants/rooms';
 import { sound } from './engine/soundEngine';
 
@@ -58,11 +60,16 @@ export default function App() {
     resetTalents,
     enhanceEquipment,
     socketGem,
-    claimBounty
+    claimBounty,
+    addCoreCrystals,
+    setPlayerProfile,
+    advanceStory,
+    buyPotions
   } = useGameState();
 
-  // Screens: 'title' | 'sanctuary' | 'adventure'
+  // Screens: 'title' | 'town' | 'sanctuary' | 'adventure'
   const [currentView, setCurrentView] = useState('title');
+  const [isPrologueOpen, setIsPrologueOpen] = useState(false);
   const [selectedFloor, setSelectedFloor] = useState(DUNGEON_FLOORS[0]);
   const [isInventoryOpen, setIsInventoryOpen] = useState(false);
   const [isClassSelectOpen, setIsClassSelectOpen] = useState(false);
@@ -115,42 +122,47 @@ export default function App() {
     sound.init();
     sound.playBGM('sanctuary');
 
-    if (!gameState.prologueSeen) {
-      // Trigger Inotia Prologue Dialogue
-      setActiveDialogue([
-        {
-          speaker: 'Roh Kuno Nether',
-          avatar: '🧙‍♂️',
-          avatarColor: '#a855f7',
-          text: 'Salam, Yang Mulia Penguasa Dungeon... Akhirnya Anda terbangun dari tidur seribu tahun.'
-        },
-        {
-          speaker: heroClass.name,
-          avatar: heroClass.avatar || '⚔️',
-          avatarColor: heroClass.color,
-          text: 'Di mana aku...? Apakah petualang manusia dari kerajaan permukaan telah menjamah wilayahku?'
-        },
-        {
-          speaker: 'Roh Kuno Nether',
-          avatar: '🧙‍♂️',
-          avatarColor: '#a855f7',
-          text: 'Benar. Para ksatria manusia terus menyerbu melalui portal untuk menjarah Inti Emasmu. Bangun pertahanan, pasang jebakan, dan pimpin pasukan monster Anda untuk menaklukkan mereka!'
-        }
-      ]);
-      markPrologueSeen();
+    if (!gameState.prologueSeen || (gameState.storyChapter || 0) === 0) {
+      setIsPrologueOpen(true);
+    } else {
+      setCurrentView('town');
     }
-
-    setCurrentView('sanctuary');
   };
 
   const handleNewGame = () => {
-    resetGame();
+    sound.init();
+    setIsPrologueOpen(true);
+  };
+
+  const handlePrologueComplete = ({ name, classId }) => {
+    setPlayerProfile(name, classId);
+    setIsPrologueOpen(false);
+    setCurrentView('town');
+    sound.playBGM('sanctuary');
+
+    setTimeout(() => {
+      setActiveDialogue([
+        {
+          speaker: 'Elena (Resepsionis Guild)',
+          avatarImg: '/portraits/elena.jpg',
+          avatarColor: '#22c55e',
+          text: `Halo, ${name}! Selamat datang di Adventurer's Guild Kota Valenrock. Pendaftaranmu sebagai Petualang Rank F telah resmi kuterima!`
+        },
+        {
+          speaker: 'Elena (Resepsionis Guild)',
+          avatarImg: '/portraits/elena.jpg',
+          avatarColor: '#22c55e',
+          text: 'Untuk membuktikan kelayakanmu, masuki [Gerbang Ekspedisi] dan selidiki "Whispering Ruins". Kalahkan Ruin Golem penjaga di sana!'
+        }
+      ]);
+    }, 400);
   };
 
   // Start Action RPG Adventure Floor
   const handleStartAdventureFromFloor = (floor) => {
     setSelectedFloor(floor);
     setCurrentView('adventure');
+    setIsFloorSelectOpen(false);
     setVictoryData(null);
     setDefeatData(null);
     sound.playBGM('dungeon');
@@ -179,6 +191,8 @@ export default function App() {
   const handleDungeonClear = useCallback((result) => {
     sound.playVictoryFanfare?.();
     addExpAndGold(result.goldEarned, result.gemsEarned, result.kills, result.killedTypes);
+    const coresGained = result.coreCrystalsEarned || 1;
+    addCoreCrystals(coresGained);
     setVictoryData(result);
 
     try {
@@ -188,7 +202,40 @@ export default function App() {
         origin: { y: 0.6 }
       });
     } catch (e) {}
-  }, [addExpAndGold]);
+
+    // First Quest Completion Story Cutscene!
+    if (gameState.storyChapter <= 1) {
+      setTimeout(() => {
+        setActiveDialogue([
+          {
+            speaker: 'Ruin Golem',
+            avatar: '🗿',
+            avatarColor: '#94a3b8',
+            text: 'GRRRAAAHHH...! Tubuh batuku hancur lebur... Kristal Inti Kuno... kini terbebas...'
+          },
+          {
+            speaker: gameState.playerName || heroClass.name,
+            avatarImg: '/portraits/hero_warrior.jpg',
+            avatarColor: '#eab308',
+            text: 'Lihat itu! Di balik reruntuhan golem, sebuah kristal raksasa memancarkan cahaya ungu-keemasan berdenyut hangat...'
+          },
+          {
+            speaker: 'Vespera (Roh Kristal Inti)',
+            avatarImg: '/portraits/vespera.jpg',
+            avatarColor: '#c084fc',
+            text: 'Wahai jiwa terpilih dari dunia seberang... Aku adalah Vespera, roh pelindung inti ini. Sentuhlah kristalku, dan biarkan seluruh gua ini menjadi Rumah & Benteng Rahasiamu!'
+          },
+          {
+            speaker: gameState.playerName || heroClass.name,
+            avatarImg: '/portraits/hero_warrior.jpg',
+            avatarColor: '#eab308',
+            text: 'Aku merasakan ikatan jiwa dengan seluruh lorong bawah tanah ini... Tempat ini akan kurahasiakan dari Guild dan kujadikan Rumah Markas Rahasiaku!'
+          }
+        ]);
+        advanceStory(2);
+      }, 1200);
+    }
+  }, [addExpAndGold, addCoreCrystals, gameState.storyChapter, gameState.playerName, heroClass, advanceStory]);
 
   const handleGameOver = useCallback((result) => {
     addExpAndGold(result.goldEarned, 0, result.kills, result.killedTypes);
@@ -202,16 +249,16 @@ export default function App() {
         speaker: boss.name,
         avatar: '👹',
         avatarColor: '#ef4444',
-        text: 'Siapa yang berani menantang kekuasaanku di kedalaman ini?! Bersiaplah menjadi santapan para monster!'
+        text: 'Siapa yang berani menginjakkan kaki di reruntuhan terlarang ini?! Bersiaplah hancur berkeping-keping!'
       },
       {
-        speaker: heroClass.name,
-        avatar: heroClass.avatar || '⚔️',
-        avatarColor: heroClass.color,
-        text: 'Aku adalah Penguasa Dungeon Sejati. Berlututlah, atau hancurlah menjadi abu!'
+        speaker: gameState.playerName || heroClass.name,
+        avatarImg: '/portraits/hero_warrior.jpg',
+        avatarColor: '#eab308',
+        text: 'Aku adalah Petualang yang terpanggil ke Eldoria! Serahkan Kristal Inti itu!'
       }
     ]);
-  }, [heroClass]);
+  }, [gameState.playerName, heroClass]);
 
   const handleUsePotion = (type = 'health') => {
     if (gameState.potionsCount > 0) {
@@ -220,6 +267,16 @@ export default function App() {
         gameCanvasRef.current?.usePotion(type);
       }
     }
+  };
+
+  const handleExitToTown = () => {
+    if (currentView === 'adventure' && liveStats.goldEarned > 0) {
+      addExpAndGold(liveStats.goldEarned, liveStats.gemsEarned, liveStats.kills, liveStats.killedTypes);
+    }
+    sound.playBGM('sanctuary');
+    setCurrentView('town');
+    setVictoryData(null);
+    setDefeatData(null);
   };
 
   const handleExitToSanctuary = () => {
@@ -245,7 +302,26 @@ export default function App() {
         />
       )}
 
-      {/* 2. Sanctuary Mode (Visual Grid Builder & Invaders) */}
+      {/* 2. Town Hub (Valenrock Central Adventurer Hub) */}
+      {currentView === 'town' && (
+        <TownHub
+          gameState={gameState}
+          heroClass={heroClass}
+          totalStats={totalStats}
+          onEnterDungeon={() => setIsFloorSelectOpen(true)}
+          onGoToSanctuary={() => setCurrentView('sanctuary')}
+          onOpenInventory={() => setIsInventoryOpen(true)}
+          onOpenTalentTree={() => setIsTalentTreeOpen(true)}
+          onOpenBountyBoard={() => setIsBountyBoardOpen(true)}
+          onOpenAudioSettings={() => setIsAudioSettingsOpen(true)}
+          onOpenClassSelect={() => setIsClassSelectOpen(true)}
+          onBuyPotions={buyPotions}
+          onAdvanceStory={advanceStory}
+          onStartStoryDialogue={(dialogueList) => setActiveDialogue(dialogueList)}
+        />
+      )}
+
+      {/* 3. Sanctuary Mode (Personal Dungeon Home) */}
       {currentView === 'sanctuary' && (
         <DungeonManagement
           gameState={gameState}
@@ -253,6 +329,7 @@ export default function App() {
           onUpgradeRoom={upgradeRoom}
           onClaimPassiveIncome={claimPassiveIncome}
           onStartAdventure={() => setIsFloorSelectOpen(true)}
+          onReturnToTown={() => setCurrentView('town')}
           onOpenInventory={() => setIsInventoryOpen(true)}
           onOpenClassSelect={() => setIsClassSelectOpen(true)}
           onOpenTalentTree={() => setIsTalentTreeOpen(true)}
@@ -452,27 +529,39 @@ export default function App() {
               </p>
             </div>
 
-            <div className="p-3.5 rounded-2xl bg-black/50 border border-gold-500/30 grid grid-cols-3 gap-2">
+            <div className="p-3 rounded-2xl bg-black/50 border border-gold-500/30 grid grid-cols-4 gap-1 text-center">
               <div>
-                <span className="text-[9px] text-slate-400 uppercase font-bold block">Gold</span>
-                <span className="text-sm font-black text-gold-400">+{victoryData.goldEarned}</span>
+                <span className="text-[8px] text-purple-400 uppercase font-bold block">Inti</span>
+                <span className="text-xs font-black text-purple-300">+{victoryData.coreCrystalsEarned || 1} 💠</span>
               </div>
               <div>
-                <span className="text-[9px] text-slate-400 uppercase font-bold block">Gems</span>
-                <span className="text-sm font-black text-purple-300">+{victoryData.gemsEarned}</span>
+                <span className="text-[8px] text-slate-400 uppercase font-bold block">Gold</span>
+                <span className="text-xs font-black text-gold-400">+{victoryData.goldEarned}</span>
               </div>
               <div>
-                <span className="text-[9px] text-slate-400 uppercase font-bold block">Monster</span>
-                <span className="text-sm font-black text-blood-400">{victoryData.kills} Mati</span>
+                <span className="text-[8px] text-slate-400 uppercase font-bold block">Gems</span>
+                <span className="text-xs font-black text-purple-300">+{victoryData.gemsEarned}</span>
+              </div>
+              <div>
+                <span className="text-[8px] text-slate-400 uppercase font-bold block">Monster</span>
+                <span className="text-xs font-black text-blood-400">{victoryData.kills}</span>
               </div>
             </div>
 
-            <button
-              onClick={handleExitToSanctuary}
-              className="w-full py-3.5 rounded-2xl bg-gradient-to-tr from-gold-600 to-amber-400 text-black font-black text-sm uppercase tracking-wider shadow-lg shadow-gold-600/30 active:scale-95 transition-all"
-            >
-              Ambil Hadiah & Pulang ke Sanctuary
-            </button>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={handleExitToTown}
+                className="py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase tracking-wider shadow-lg active:scale-95 transition-all"
+              >
+                Kembali ke Kota
+              </button>
+              <button
+                onClick={handleExitToSanctuary}
+                className="py-3 rounded-2xl bg-gradient-to-tr from-purple-700 to-indigo-600 text-white font-black text-xs uppercase tracking-wider shadow-lg active:scale-95 transition-all"
+              >
+                Ke Rumah Dungeon
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -490,7 +579,7 @@ export default function App() {
                 HERO TUMBANG
               </h2>
               <p className="text-xs text-slate-300">
-                Monster terlalu kuat kali ini. Perkuat perlengkapan Paperdoll dan minion di Sanctuary.
+                Monster terlalu kuat kali ini. Perkuat perlengkapan di Kota atau tingkatkan pertahanan dungeon.
               </p>
             </div>
 
@@ -499,12 +588,20 @@ export default function App() {
               <span className="text-base font-black text-gold-400">+{defeatData.goldEarned} Gold</span>
             </div>
 
-            <button
-              onClick={handleExitToSanctuary}
-              className="w-full py-3.5 rounded-2xl bg-dungeon-700 hover:bg-dungeon-600 text-white font-black text-sm uppercase tracking-wider active:scale-95 transition-all"
-            >
-              Kembali ke Sanctuary
-            </button>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={handleExitToTown}
+                className="py-3 rounded-2xl bg-dungeon-800 hover:bg-dungeon-700 text-white font-black text-xs uppercase tracking-wider active:scale-95 transition-all"
+              >
+                Kembali ke Kota
+              </button>
+              <button
+                onClick={handleExitToSanctuary}
+                className="py-3 rounded-2xl bg-dungeon-700 hover:bg-dungeon-600 text-white font-black text-xs uppercase tracking-wider active:scale-95 transition-all"
+              >
+                Ke Rumah Dungeon
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -574,6 +671,12 @@ export default function App() {
 
       {/* 13. PWA Install Prompt */}
       <InstallPwaPrompt />
+
+      {/* 14. Isekai Prologue & Profile Setup Modal */}
+      <PrologueModal
+        isOpen={isPrologueOpen}
+        onComplete={handlePrologueComplete}
+      />
     </div>
   );
 }

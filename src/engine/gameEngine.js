@@ -519,10 +519,12 @@ export class GameEngine {
 
     if (monster.isBoss) {
       sound.playLevelUp();
+      this.addFloatingText(monster.x, monster.y - 65, '💠 +1 KRISTAL INTI DUNGEON!', '#c084fc', 18);
       if (this.onDungeonClear) {
         this.onDungeonClear({
           goldEarned: this.player.goldEarned,
           gemsEarned: this.player.gemsEarned,
+          coreCrystalsEarned: 1,
           kills: this.player.kills,
           killedTypes: { ...this.killedTypes }
         });

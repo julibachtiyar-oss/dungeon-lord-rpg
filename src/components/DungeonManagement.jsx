@@ -28,6 +28,7 @@ export default function DungeonManagement({
   onUpgradeRoom,
   onClaimPassiveIncome,
   onStartAdventure,
+  onReturnToTown,
   onOpenInventory,
   onOpenClassSelect,
   onOpenTalentTree,
@@ -37,7 +38,7 @@ export default function DungeonManagement({
   onAddSanctuaryRewards,
   onAddLoot
 }) {
-  const { gold, gems, rooms, unclaimedGold, heroLevel, gridState } = gameState;
+  const { gold, gems, rooms, unclaimedGold, heroLevel, gridState, coreCrystals } = gameState;
   const activeHero = heroClass || HERO_CLASSES[gameState?.heroClassId] || HERO_CLASSES.warrior;
 
   const [managementView, setManagementView] = useState('map'); // 'map' | 'facilities'
@@ -82,28 +83,36 @@ export default function DungeonManagement({
       {/* Header Bar */}
       <div className="sticky top-0 z-30 bg-dungeon-950/95 backdrop-blur-md border-b border-dungeon-800 px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
+          {onReturnToTown && (
+            <button
+              onClick={onReturnToTown}
+              className="px-2.5 py-1.5 rounded-xl bg-dungeon-800 hover:bg-dungeon-700 border border-gold-500/40 text-gold-400 text-[10px] font-black uppercase flex items-center gap-1 active:scale-95 transition-all shadow-md mr-1"
+            >
+              <span>🏰 Ke Kota</span>
+            </button>
+          )}
           <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-purple-700 to-amber-500 flex items-center justify-center shadow-lg shadow-purple-900/30">
             <Crown size={20} className="text-white" />
           </div>
           <div>
             <h1 className="font-fantasy font-black text-sm tracking-wide text-gold-400">
-              DUNGEON SANCTUARY
+              RUMAH DUNGEON PRIBADI
             </h1>
             <p className="text-[10px] text-slate-400 font-medium">
-              Penguasa: <span className="text-white font-bold">{activeHero.name} (Lv.{heroLevel})</span>
+              Penguasa: <span className="text-white font-bold">{gameState.playerName || activeHero.name} (Lv.{heroLevel})</span>
             </p>
           </div>
         </div>
 
         {/* Currency Pill */}
         <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 bg-black/60 border border-purple-500/60 px-2.5 py-1 rounded-full text-xs font-black text-purple-300 shadow-inner">
+            <Sparkles size={14} className="text-purple-400 animate-pulse" />
+            <span>{coreCrystals || 0} Inti</span>
+          </div>
           <div className="flex items-center gap-1 bg-black/60 border border-gold-600/40 px-2.5 py-1 rounded-full text-xs font-black text-gold-400 shadow-inner">
             <Coins size={14} className="text-gold-400" />
             <span>{Math.floor(gold).toLocaleString()}</span>
-          </div>
-          <div className="flex items-center gap-1 bg-black/60 border border-purple-500/40 px-2.5 py-1 rounded-full text-xs font-black text-purple-300 shadow-inner">
-            <Sparkles size={14} className="text-purple-400" />
-            <span>{gems}</span>
           </div>
           {onOpenAudioSettings && (
             <button
@@ -118,6 +127,31 @@ export default function DungeonManagement({
       </div>
 
       <div className="p-4 max-w-lg mx-auto w-full space-y-4">
+        {/* Vespera Dungeon Core Spirit Guide Card */}
+        <div className="rounded-2xl p-3.5 bg-gradient-to-r from-purple-950/70 via-dungeon-900 to-indigo-950/70 border border-purple-500/50 shadow-xl flex items-center gap-3">
+          <div className="w-14 h-14 rounded-2xl overflow-hidden border-2 border-purple-400 shadow-lg shrink-0 bg-dungeon-950">
+            <img
+              src="/portraits/vespera.jpg"
+              alt="Vespera"
+              className="w-full h-full object-cover object-top"
+              style={{ imageRendering: 'pixelated' }}
+            />
+          </div>
+          <div className="flex-1 space-y-0.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-black text-purple-300 font-fantasy">
+                Vespera (Roh Kristal Inti)
+              </span>
+              <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-purple-500/30 text-purple-200">
+                {coreCrystals || 0} Kristal Inti
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-200 leading-snug">
+              "Selamat datang kembali di rumah kita, Tuanku! Kalahkan bos di dungeon liar untuk merebut Kristal Inti dan memperluas pertahanan kastil bawah tanah ini!"
+            </p>
+          </div>
+        </div>
+
         {/* Passive Income Claim Banner */}
         <div className="rounded-2xl p-4 bg-gradient-to-r from-amber-950/50 via-dungeon-850 to-amber-950/40 border border-gold-600/40 shadow-xl flex items-center justify-between relative overflow-hidden">
           <div className="space-y-1">
@@ -247,6 +281,7 @@ export default function DungeonManagement({
             onUpdateGrid={onUpdateGrid}
             gold={gold}
             gems={gems}
+            coreCrystals={coreCrystals || 0}
             onAddRewards={onAddSanctuaryRewards}
             onAddLoot={onAddLoot}
             heroClass={activeHero}
