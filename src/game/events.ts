@@ -4,7 +4,7 @@ export type EventPayloads = {
   'game:start': void;
   'game:pause': boolean;
   'game:restart': void;
-  'game:state': 'title' | 'playing' | 'paused' | 'gameover' | 'victory';
+  'game:state': 'title' | 'prologue' | 'town' | 'sanctuary' | 'playing' | 'paused' | 'gameover' | 'victory';
   'player:stats': { hp: number; maxHp: number; level: number; xp: number; nextXp: number; potions: number };
   'player:gold': number;
   'player:skills': { 

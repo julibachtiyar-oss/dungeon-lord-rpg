@@ -41,6 +41,7 @@ export class GameScene extends Phaser.Scene {
   private decorGroup!: Phaser.GameObjects.Group;
   private lightsGroup!: Phaser.GameObjects.Group;
   private playerLight!: Phaser.GameObjects.Image;
+  private stairsPortal: { x: number; y: number } | null = null;
 
   // Run Stats
   private runStartTime: number = 0;
@@ -65,8 +66,12 @@ export class GameScene extends Phaser.Scene {
     this.setupGroups();
     this.loadFloor(this.currentFloorNumber);
 
-    // Start background synth ambiance
-    BGM.start();
+    // Audio
+    if (this.currentFloorNumber === 3) {
+      BGM.playBoss();
+    } else {
+      BGM.playDungeon();
+    }
 
     EventBus.emitEvent('game:state', 'playing');
 
@@ -110,6 +115,7 @@ export class GameScene extends Phaser.Scene {
   private loadFloor(floorNum: number): void {
     this.currentFloorNumber = floorNum;
     this.floorData = MapLoader.getFloor(floorNum);
+    this.stairsPortal = null;
 
     // Clear previous floor entities
     this.enemies.clear(true, true);
@@ -118,14 +124,14 @@ export class GameScene extends Phaser.Scene {
     this.decorGroup.clear(true, true);
     this.lightsGroup.clear(true, true);
 
-    // Render floor background & walls & dynamic lights
+    // Render floor background & connected corridors
     this.renderFloorGeometry(this.floorData);
 
     // Spawn or reposition Player
     if (!this.player) {
       this.player = new Player(this, this.floorData.playerSpawn.x, this.floorData.playerSpawn.y);
       this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
-      this.cameras.main.setZoom(1.0);
+      this.cameras.main.setZoom(1.05);
     } else {
       this.player.setPosition(this.floorData.playerSpawn.x, this.floorData.playerSpawn.y);
     }
@@ -146,27 +152,34 @@ export class GameScene extends Phaser.Scene {
     this.physics.add.collider(this.enemies, this.wallsGroup);
     this.physics.add.collider(this.enemies, this.enemies);
 
+    // Switch BGM if entering Boss Room
+    if (floorNum === 3) {
+      BGM.playBoss();
+    } else {
+      BGM.playDungeon();
+    }
+
     // Trigger Story Beat
     if (floorNum === 1) {
       EventBus.emitEvent('story:dialogue', {
         id: 2,
         speaker: 'Ren (Ksatria)',
-        text: '(Kuil Gerbang Kuno. Terlalu banyak goblin... mereka seperti digerakkan sesuatu dari dalam.)',
-        options: ['Lanjut Menjelajah']
+        text: '(Kuil Gerbang Runtuh. Lorong-lorong batu terbuka... sarang goblin ada di aula dalam!)',
+        options: ['Jelajahi Lorong']
       });
     } else if (floorNum === 2) {
       EventBus.emitEvent('story:dialogue', {
         id: 3,
         speaker: 'Ren (Ksatria)',
-        text: '(Pemanah kerangka bangkit dari makam kuno. Kristal di bawah memanggilku...)',
+        text: '(Makam Obsidian. Udara semakin pekat dengan getaran kristal ungu...)',
         options: ['Hunus Pedang']
       });
     } else if (floorNum === 3) {
       EventBus.emitEvent('story:dialogue', {
         id: 4,
-        speaker: 'Suara Kristal Emberdeep',
-        text: '...Ksatria terpilih... Hancurkan Ruin Warden dan jadikan inti ini milikmu selamanya!',
-        options: ['Aku akan membebaskanmu!', 'Mati kau golem!']
+        speaker: 'Inti Kristal Emberdeep',
+        text: 'Ksatria terpilih! Hancurkan Ruin Warden dan jadikan inti kristal ini milikmu!',
+        options: ['Hancurkan Golem!']
       });
     }
 
@@ -174,66 +187,112 @@ export class GameScene extends Phaser.Scene {
   }
 
   private renderFloorGeometry(data: FloorData): void {
+    const floorTilesSet = new Set<string>();
+
+    // 1. Collect all room tiles
     for (const r of data.rooms) {
-      // Room floor tiles with decorative pattern
       for (let x = r.x; x < r.x + r.w; x += 16) {
         for (let y = r.y; y < r.y + r.h; y += 16) {
-          const isRune = (Math.floor(x / 16) + Math.floor(y / 16)) % 6 === 0;
-          const tex = isRune ? 'floor_rune' : 'floor_tile';
-          const tile = this.add.image(x + 8, y + 8, tex);
-          tile.setDepth(-10);
+          floorTilesSet.add(`${x},${y}`);
         }
       }
+    }
 
-      // Perimeter walls
-      // Top & Bottom walls
-      for (let x = r.x - 16; x <= r.x + r.w; x += 16) {
-        const topWall = this.wallsGroup.create(x + 8, r.y - 8, 'wall_tile');
-        topWall.setDepth(r.y);
-
-        // Add torch on top wall every 64 pixels
-        if ((x - r.x) % 64 === 0 && x > r.x && x < r.x + r.w) {
-          const torch = this.add.image(x + 8, r.y - 4, 'torch');
-          torch.setDepth(r.y + 1);
-          this.decorGroup.add(torch);
-
-          const torchLight = this.add.image(x + 8, r.y + 4, 'light_halo');
-          torchLight.setBlendMode(Phaser.BlendModes.ADD);
-          torchLight.setAlpha(0.4);
-          torchLight.setScale(0.85);
-          torchLight.setDepth(998);
-          this.lightsGroup.add(torchLight);
+    // 2. Collect all corridor tiles (connecting rooms smoothly!)
+    for (const c of data.corridors) {
+      for (let x = c.x; x < c.x + c.w; x += 16) {
+        for (let y = c.y; y < c.y + c.h; y += 16) {
+          floorTilesSet.add(`${x},${y}`);
         }
-
-        const botWall = this.wallsGroup.create(x + 8, r.y + r.h + 8, 'wall_tile');
-        botWall.setDepth(r.y + r.h + 16);
       }
+    }
 
-      // Left & Right walls
-      for (let y = r.y; y < r.y + r.h; y += 16) {
-        const leftWall = this.wallsGroup.create(r.x - 8, y + 8, 'wall_tile');
-        leftWall.setDepth(y + 8);
-        const rightWall = this.wallsGroup.create(r.x + r.w + 8, y + 8, 'wall_tile');
-        rightWall.setDepth(y + 8);
+    // 3. Render floor tiles
+    floorTilesSet.forEach((coord) => {
+      const parts = coord.split(',');
+      const sx = parseInt(parts[0], 10);
+      const sy = parseInt(parts[1], 10);
+      const isRune = (Math.floor(sx / 16) + Math.floor(sy / 16)) % 7 === 0;
+      const tex = isRune ? 'floor_rune' : 'floor_tile';
+      const tile = this.add.image(sx + 8, sy + 8, tex);
+      tile.setDepth(-10);
+    });
+
+    // 4. Place wall tiles strictly on the true outer perimeter
+    const wallSet = new Set<string>();
+    const offsets = [
+      [-16, 0], [16, 0], [0, -16], [0, 16],
+      [-16, -16], [16, -16], [-16, 16], [16, 16]
+    ];
+
+    floorTilesSet.forEach((coord) => {
+      const parts = coord.split(',');
+      const fx = parseInt(parts[0], 10);
+      const fy = parseInt(parts[1], 10);
+
+      for (const [dx, dy] of offsets) {
+        const nx = fx + dx;
+        const ny = fy + dy;
+        const key = `${nx},${ny}`;
+        if (!floorTilesSet.has(key) && !wallSet.has(key)) {
+          wallSet.add(key);
+          const wall = this.wallsGroup.create(nx + 8, ny + 8, 'wall_tile');
+          wall.setDepth(ny + 8);
+        }
       }
+    });
 
-      // If Floor 3 (Boss Room): Add Glowing Purple Crystals in corners
-      if (this.currentFloorNumber === 3) {
-        const crystalPositions = [
-          { x: r.x + 24, y: r.y + 24 },
-          { x: r.x + r.w - 24, y: r.y + 24 },
-          { x: r.x + 24, y: r.y + r.h - 24 },
-          { x: r.x + r.w - 24, y: r.y + r.h - 24 }
+    // 5. Add torches and DownStairs Portal
+    for (const r of data.rooms) {
+      // Add a wall torch in each room
+      const torchX = r.x + 32;
+      const torchY = r.y - 4;
+      const torch = this.add.image(torchX, torchY, 'torch');
+      torch.setDepth(torchY + 1);
+      this.decorGroup.add(torch);
+
+      const torchLight = this.add.image(torchX, torchY + 6, 'light_halo');
+      torchLight.setBlendMode(Phaser.BlendModes.ADD);
+      torchLight.setAlpha(0.4);
+      torchLight.setScale(0.8);
+      this.lightsGroup.add(torchLight);
+
+      // DownStairs Portal in exit room
+      if (r.isDownStairs) {
+        const px = r.x + r.w * 0.5;
+        const py = r.y + r.h * 0.5;
+        this.stairsPortal = { x: px, y: py };
+
+        const portal = this.add.image(px, py, 'stairs_portal');
+        portal.setDepth(py);
+        this.decorGroup.add(portal);
+
+        const halo = this.add.image(px, py, 'crystal_halo');
+        halo.setBlendMode(Phaser.BlendModes.ADD);
+        halo.setAlpha(0.65);
+        halo.setScale(0.85);
+        this.lightsGroup.add(halo);
+      }
+    }
+
+    // Floor 3 (Boss Room): Add Glowing Purple Crystals
+    if (this.currentFloorNumber === 3) {
+      const bossRoom = data.rooms[1];
+      if (bossRoom) {
+        const corners = [
+          { x: bossRoom.x + 32, y: bossRoom.y + 32 },
+          { x: bossRoom.x + bossRoom.w - 32, y: bossRoom.y + 32 },
+          { x: bossRoom.x + 32, y: bossRoom.y + bossRoom.h - 32 },
+          { x: bossRoom.x + bossRoom.w - 32, y: bossRoom.y + bossRoom.h - 32 }
         ];
-        for (const pos of crystalPositions) {
-          const crystal = this.add.image(pos.x, pos.y, 'core_crystal');
-          crystal.setDepth(pos.y);
+        for (const c of corners) {
+          const crystal = this.add.image(c.x, c.y, 'core_crystal');
+          crystal.setDepth(c.y);
           this.decorGroup.add(crystal);
 
-          const halo = this.add.image(pos.x, pos.y, 'crystal_halo');
+          const halo = this.add.image(c.x, c.y, 'crystal_halo');
           halo.setBlendMode(Phaser.BlendModes.ADD);
-          halo.setAlpha(0.6);
-          halo.setDepth(998);
+          halo.setAlpha(0.7);
           this.lightsGroup.add(halo);
         }
       }
@@ -265,13 +324,12 @@ export class GameScene extends Phaser.Scene {
     // Follow player with torch lantern light
     if (this.playerLight) {
       this.playerLight.setPosition(this.player.x, this.player.y);
-      // Gentle flicker effect
       this.playerLight.setAlpha(0.55 + Math.sin(time * 0.005) * 0.08);
     }
 
     const inputState = this.inputs.getState();
 
-    // Find nearest enemy for auto-aim
+    // Auto-aim: find nearest active enemy
     let nearestEnemy: Enemy | null = null;
     let minDist = 999;
     this.enemies.getChildren().forEach((child) => {
@@ -325,8 +383,8 @@ export class GameScene extends Phaser.Scene {
     // Check Pickups & Chests
     this.checkPickupsAndChests();
 
-    // Check Room & Progression
-    this.checkRoomProgression();
+    // Check Stairs / Floor Progression
+    this.checkStairsProgression();
 
     // Emit Skills Cooldown Progress to React HUD
     EventBus.emitEvent('player:skills', this.player.getSkillState(time));
@@ -430,21 +488,19 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  private checkRoomProgression(): void {
-    const room = this.rooms.checkPlayerRoom(this.player.x, this.player.y, this.floorData.rooms, this.currentFloorNumber);
-    if (!room) return;
+  private checkStairsProgression(): void {
+    if (!this.stairsPortal || this.currentFloorNumber >= 3) return;
 
-    // Check if down-stairs reached
-    if (room.isDownStairs) {
-      let anyEnemyInRoom = false;
+    const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, this.stairsPortal.x, this.stairsPortal.y);
+    if (dist <= 24) {
+      // Check if enemies are defeated
+      let enemiesAlive = false;
       this.enemies.getChildren().forEach((child) => {
         const e = child as Enemy;
-        if (e.active && !e.isDead && e.x >= room.x && e.x <= room.x + room.w && e.y >= room.y && e.y <= room.y + room.h) {
-          anyEnemyInRoom = true;
-        }
+        if (e.active && !e.isDead) enemiesAlive = true;
       });
 
-      if (!anyEnemyInRoom && this.currentFloorNumber < 3) {
+      if (!enemiesAlive) {
         SFX.door();
         this.loadFloor(this.currentFloorNumber + 1);
       }
@@ -455,18 +511,16 @@ export class GameScene extends Phaser.Scene {
     SFX.victoryFanfare();
     const elapsedSec = Math.round((Date.now() - this.runStartTime) / 1000);
 
-    // Calculate Rank S, A, B, C
     let rank = 'C';
     if (elapsedSec <= 90 && this.totalDamageTaken < 50) rank = 'S';
     else if (elapsedSec <= 150) rank = 'A';
     else if (elapsedSec <= 240) rank = 'B';
 
-    // Beat 5 Story Dialogue
     EventBus.emitEvent('story:dialogue', {
       id: 5,
       speaker: 'Inti Kristal Emberdeep',
-      text: 'Ikatan darah telah terjalin. Kuil ini sekarang adalah tempat perlindunganmu. Kau adalah DUNGEON LORD baru!',
-      options: ['Klaim Kekuatan Dungeon']
+      text: 'Ruin Warden telah tumbang! Inti Kristal Utama kini menyatu dengan jiwamu. Kau adalah Penguasa Dungeon (DUNGEON LORD) baru!',
+      options: ['Klaim Kristal & Kembali ke Kota']
     });
 
     EventBus.onEvent('story:choice', () => {

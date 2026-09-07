@@ -1,3 +1,5 @@
+import { EventBus } from '../game/events';
+import { BGM } from '../game/audio/bgm';
 import React from 'react';
 import { Trophy, Clock, Skull, ShieldAlert, RotateCcw, Share2 } from 'lucide-react';
 
@@ -13,7 +15,8 @@ interface Props {
 
 export default function ResultScreen({ data }: Props) {
   const handlePlayAgain = () => {
-    window.location.reload();
+    EventBus.emitEvent('game:state', 'town');
+    BGM.playTown();
   };
 
   const handleShare = async () => {
@@ -91,7 +94,7 @@ export default function ResultScreen({ data }: Props) {
             className="py-3 rounded-2xl bg-gradient-to-r from-gold-600 to-amber-600 text-black text-xs font-black uppercase active:scale-95 shadow-md flex items-center justify-center gap-1.5 font-fantasy"
           >
             <RotateCcw size={14} />
-            <span>Main Lagi</span>
+            <span>Kembali ke Kota Valenrock</span>
           </button>
 
           <button

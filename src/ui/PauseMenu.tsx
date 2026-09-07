@@ -1,3 +1,4 @@
+import { BGM } from '../game/audio/bgm';
 import React from 'react';
 import { Play, RotateCcw, Home } from 'lucide-react';
 import { EventBus } from '../game/events';
@@ -13,7 +14,9 @@ export default function PauseMenu({ onResume }: Props) {
   };
 
   const handleQuit = () => {
-    window.location.reload();
+    EventBus.emitEvent('game:state', 'town');
+    BGM.playTown();
+    onResume();
   };
 
   return (
@@ -45,7 +48,7 @@ export default function PauseMenu({ onResume }: Props) {
             className="w-full py-2.5 rounded-2xl bg-black/50 border border-red-900/50 text-red-400 text-xs font-bold uppercase active:scale-95 flex items-center justify-center gap-2"
           >
             <Home size={14} />
-            <span>Keluar ke Judul</span>
+            <span>Kembali ke Kota</span>
           </button>
         </div>
       </div>

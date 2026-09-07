@@ -1,4 +1,4 @@
-import Phaser from 'phaser';
+﻿import Phaser from 'phaser';
 import { Entity } from './Entity';
 import { BALANCE } from '../config/balance';
 import { EventBus } from '../events';
@@ -38,31 +38,23 @@ export class Player extends Entity {
   private dashEndTime: number = 0;
   private dashVelocity: Phaser.Math.Vector2 = new Phaser.Math.Vector2();
 
-  // Attack references
-  public swordSprite!: Phaser.GameObjects.Sprite;
-  private afterimageTimer: number = 0;
+  // Attached Visuals
+  public swordSprite: Phaser.GameObjects.Sprite;
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
-    super(scene, x, y, 'knight');
+    super(scene, x, y, 'hero_idle');
+    this.hp = BALANCE.player.maxHp;
     this.maxHp = BALANCE.player.maxHp;
-    this.hp = this.maxHp;
 
-    // Body collider set to feet (GDD §3.1: 10x8 px)
     const body = this.body as Phaser.Physics.Arcade.Body;
-    body.setSize(BALANCE.player.colliderWidth, BALANCE.player.colliderHeight);
-    body.setOffset(3, 20);
+    body.setSize(16, 20);
+    body.setOffset(4, 10);
+    body.setCollideWorldBounds(true);
 
-    // Sword child sprite for sweeps
+    // Attached sword for weapon sweep
     this.swordSprite = scene.add.sprite(x, y, 'weapon');
-    this.swordSprite.setOrigin(0.2, 0.8);
     this.swordSprite.setVisible(false);
-  }
-
-  public getDamage(): number {
-    const base = BALANCE.player.baseDamage;
-    const lvlBonus = (this.level - 1) * BALANCE.player.damagePerLevel;
-    const wepBonus = (this.weaponTier - 1) * BALANCE.player.damagePerWeaponTier;
-    return base + lvlBonus + wepBonus;
+    this.swordSprite.setDepth(15);
   }
 
   public handleInput(
@@ -72,11 +64,11 @@ export class Player extends Entity {
     bulwarkPressed: boolean,
     dashPressed: boolean,
     potionPressed: boolean,
-    nearestEnemyPos: { x: number; y: number } | null = null
+    nearestEnemyPos: { x: number; y: number } | null
   ): void {
     const time = this.scene.time.now;
 
-    // Potions
+    // Healing Potion
     if (potionPressed && this.potions > 0 && this.hp < this.maxHp && this.currentState !== 'dead') {
       this.potions--;
       this.heal(BALANCE.player.potionHeal);
@@ -84,7 +76,7 @@ export class Player extends Entity {
       this.emitStats();
     }
 
-    // Dead or Stunned
+    // Dead
     if (this.currentState === 'dead') return;
 
     // Bulwark state active check
@@ -93,18 +85,21 @@ export class Player extends Entity {
     // Dash Trigger
     if (dashPressed && time >= this.dashReadyUntil && this.currentState !== 'dash') {
       this.startDash(moveVec, time);
+      this.updateVisualFrame(time);
       return;
     }
 
     // Ember Cleave Trigger
     if (cleavePressed && time >= this.cleaveReadyUntil && this.canCancelIntoAction()) {
       this.startCleave(time, nearestEnemyPos);
+      this.updateVisualFrame(time);
       return;
     }
 
     // Bulwark Trigger
     if (bulwarkPressed && time >= this.bulwarkReadyUntil && this.canCancelIntoAction()) {
       this.startBulwark(time);
+      this.updateVisualFrame(time);
       return;
     }
 
@@ -124,13 +119,13 @@ export class Player extends Entity {
       if (time >= this.dashEndTime) {
         this.currentState = 'idle';
       }
+      this.updateVisualFrame(time);
       return;
     }
 
     if (this.isAttackingState()) {
       this.setVelocity(0, 0); // Hero committed to attack
       if (time >= this.stateEndTime) {
-        // Attack finished, check buffered continuation
         if (this.hasBufferedAttack && time <= this.comboBufferUntil) {
           this.hasBufferedAttack = false;
           if (this.currentState === 'attack1') {
@@ -144,6 +139,7 @@ export class Player extends Entity {
           this.currentState = 'idle';
         }
       }
+      this.updateVisualFrame(time);
       return;
     }
 
@@ -158,14 +154,37 @@ export class Player extends Entity {
       this.setFlipX(moveVec.x < 0);
     } else {
       this.setVelocity(0, 0);
-      this.currentState = 'idle';
+      if (this.currentState === 'run') {
+        this.currentState = 'idle';
+      }
+    }
+
+    this.updateVisualFrame(time);
+  }
+
+  private updateVisualFrame(time: number): void {
+    if (this.currentState === 'attack1') {
+      this.setTexture('hero_atk_1');
+    } else if (this.currentState === 'attack2') {
+      this.setTexture('hero_atk_2');
+    } else if (this.currentState === 'attack3') {
+      this.setTexture('hero_atk_3');
+    } else if (this.currentState === 'cleave') {
+      this.setTexture('hero_cleave');
+    } else if (this.currentState === 'bulwark') {
+      this.setTexture('hero_guard');
+    } else if (this.currentState === 'dash') {
+      this.setTexture('hero_walk_1');
+    } else if (this.currentState === 'run') {
+      const step = Math.floor(time / 140) % 2;
+      this.setTexture(step === 0 ? 'hero_walk_1' : 'hero_walk_2');
+    } else {
+      this.setTexture('hero_idle');
     }
   }
 
   private canCancelIntoAction(): boolean {
-    if (this.currentState === 'idle' || this.currentState === 'run') return true;
-    if (this.currentState === 'attack1' || this.currentState === 'attack2') return true;
-    return false;
+    return this.currentState === 'idle' || this.currentState === 'run';
   }
 
   private canAttack(): boolean {
@@ -186,15 +205,12 @@ export class Player extends Entity {
     this.currentState = (`attack${hitIndex}`) as PlayerState;
     this.stateEndTime = time + hitData.startup + hitData.active + hitData.recovery;
 
-    // Auto-aim direction adjustment
     this.applyAutoAim(enemyPos);
 
-    // Audio
     if (hitIndex === 1) SFX.swing1();
     else if (hitIndex === 2) SFX.swing2();
     else SFX.swing3();
 
-    // Trigger weapon visual sweep
     this.triggerWeaponSweep(hitIndex);
   }
 
@@ -208,13 +224,15 @@ export class Player extends Entity {
     SFX.cleave();
     this.setTint(0xffaa00);
     this.scene.time.delayedCall(cleave.startup, () => this.clearTint());
-    this.triggerWeaponSweep(3);
   }
 
   private startBulwark(time: number): void {
     const bulwark = BALANCE.player.bulwark;
+    this.currentState = 'bulwark';
     this.bulwarkReadyUntil = time + bulwark.cooldown;
-    this.bulwarkActiveUntil = time + bulwark.duration;
+    this.bulwarkActiveUntil = time + bulwark.parryWindow;
+    this.stateEndTime = time + bulwark.duration;
+
     SFX.shieldUp();
   }
 
@@ -224,41 +242,61 @@ export class Player extends Entity {
     this.dashReadyUntil = time + dash.cooldown;
     this.dashEndTime = time + dash.duration;
     this.isInvulnerable = true;
-    this.invulnerableUntil = time + dash.iFrames;
 
-    let dirX = moveVec.x;
-    let dirY = moveVec.y;
-    if (dirX === 0 && dirY === 0) {
-      dirX = this.facing.x;
-      dirY = this.facing.y;
-    }
-    const len = Math.hypot(dirX, dirY) || 1;
-    const speed = (dash.distance / (dash.duration / 1000));
-    this.dashVelocity.set((dirX / len) * speed, (dirY / len) * speed);
+    let dir = new Phaser.Math.Vector2(moveVec.x, moveVec.y);
+    if (dir.length() === 0) dir.copy(this.facing);
+    dir.normalize();
 
+    const speed = dash.distance / (dash.duration / 1000);
+    this.dashVelocity.set(dir.x * speed, dir.y * speed);
     SFX.dash();
+
+    // Afterimage ghost effect
+    this.createAfterimage();
+    this.scene.time.delayedCall(60, () => this.createAfterimage());
+    this.scene.time.delayedCall(120, () => this.createAfterimage());
+
+    this.scene.time.delayedCall(dash.duration, () => {
+      this.isInvulnerable = false;
+    });
+  }
+
+  private createAfterimage(): void {
+    const ghost = this.scene.add.sprite(this.x, this.y, this.texture.key);
+    ghost.setFlipX(this.flipX);
+    ghost.setAlpha(0.65);
+    ghost.setTint(0x38bdf8);
+    ghost.setDepth(this.depth - 1);
+    this.scene.tweens.add({
+      targets: ghost,
+      alpha: 0,
+      duration: 200,
+      onComplete: () => ghost.destroy()
+    });
   }
 
   private applyAutoAim(enemyPos: { x: number; y: number } | null): void {
     if (!enemyPos) return;
     const dist = Phaser.Math.Distance.Between(this.x, this.y, enemyPos.x, enemyPos.y);
     if (dist <= BALANCE.player.autoAimRadius) {
-      this.facing.set(enemyPos.x - this.x, enemyPos.y - this.y).normalize();
+      const angle = Phaser.Math.Angle.Between(this.x, this.y, enemyPos.x, enemyPos.y);
+      this.facing.set(Math.cos(angle), Math.sin(angle));
       this.setFlipX(this.facing.x < 0);
     }
   }
 
   private triggerWeaponSweep(hitIndex: number): void {
     this.swordSprite.setVisible(true);
-    this.swordSprite.setPosition(this.x + this.facing.x * 12, this.y + this.facing.y * 12);
-    const baseAngle = Phaser.Math.RadToDeg(Math.atan2(this.facing.y, this.facing.x));
-    this.swordSprite.setAngle(baseAngle - 45);
+    const startAngle = hitIndex === 1 ? -45 : hitIndex === 2 ? 45 : -80;
+    const endAngle = hitIndex === 1 ? 45 : hitIndex === 2 ? -45 : 80;
+    const flip = this.flipX ? -1 : 1;
 
+    this.swordSprite.setAngle(startAngle * flip);
     this.scene.tweens.add({
       targets: this.swordSprite,
-      angle: baseAngle + 45,
-      duration: hitIndex === 3 ? 140 : 100,
-      ease: 'Cubic.easeOut',
+      angle: endAngle * flip,
+      duration: 120,
+      ease: 'Power1',
       onComplete: () => {
         this.swordSprite.setVisible(false);
       }
@@ -267,39 +305,21 @@ export class Player extends Entity {
 
   public override takeDamage(damage: number, knockX: number = 0, knockY: number = 0): boolean {
     const time = this.scene.time.now;
-    if (this.isInvulnerable || this.hp <= 0) return false;
 
-    // Parry window check (GDD §3.6: first 200 ms of Bulwark)
-    const isBulwark = time < this.bulwarkActiveUntil;
-    const bulwarkAge = time - (this.bulwarkActiveUntil - BALANCE.player.bulwark.duration);
-    if (isBulwark && bulwarkAge <= BALANCE.player.bulwark.parryWindow) {
-      // PARRY SUCCESS!
+    // Bulwark Parry Check
+    if (this.currentState === 'bulwark' && time < this.bulwarkActiveUntil) {
       SFX.parry();
-      this.bulwarkReadyUntil -= (BALANCE.player.bulwark.cooldown * BALANCE.player.bulwark.parryCooldownReduction);
-      EventBus.emitEvent('player:damaged', { damage: 0, currentHp: this.hp });
-      return false;
+      this.scene.cameras.main.shake(100, 0.008);
+      return false; // 0 damage!
     }
 
-    // Damage reduction during Bulwark
-    let actualDamage = damage;
-    if (isBulwark) {
-      actualDamage = Math.round(damage * (1 - BALANCE.player.bulwark.damageReduction));
-    }
-
-    const hit = super.takeDamage(actualDamage, knockX, knockY);
-    if (hit) {
+    const took = super.takeDamage(damage, knockX, knockY);
+    if (took) {
       SFX.hurt();
-      this.isInvulnerable = true;
-      this.invulnerableUntil = time + BALANCE.player.invulnerableDuration;
-      EventBus.emitEvent('player:damaged', { damage: actualDamage, currentHp: this.hp });
       this.emitStats();
-
-      if (this.hp <= 0) {
-        this.currentState = 'dead';
-        this.setVelocity(0, 0);
-      }
+      EventBus.emitEvent('player:damaged', { damage, currentHp: this.hp });
     }
-    return hit;
+    return took;
   }
 
   public addXp(amount: number): void {
@@ -334,17 +354,25 @@ export class Player extends Entity {
   }
 
   public getSkillState(time: number) {
-    const cleaveElapsed = Math.max(0, this.cleaveReadyUntil - time);
-    const bulwarkElapsed = Math.max(0, this.bulwarkReadyUntil - time);
-    const dashElapsed = Math.max(0, this.dashReadyUntil - time);
+    const cleave = BALANCE.player.cleave;
+    const bulwark = BALANCE.player.bulwark;
+    const dash = BALANCE.player.dash;
+
+    const cleaveRemain = Math.max(0, this.cleaveReadyUntil - time);
+    const bulwarkRemain = Math.max(0, this.bulwarkReadyUntil - time);
+    const dashRemain = Math.max(0, this.dashReadyUntil - time);
 
     return {
-      cleaveReady: cleaveElapsed === 0,
-      cleaveCooldownProgress: cleaveElapsed / BALANCE.player.cleave.cooldown,
-      bulwarkReady: bulwarkElapsed === 0,
-      bulwarkCooldownProgress: bulwarkElapsed / BALANCE.player.bulwark.cooldown,
-      dashReady: dashElapsed === 0,
-      dashCooldownProgress: dashElapsed / BALANCE.player.dash.cooldown,
+      cleaveReady: cleaveRemain === 0,
+      cleaveCooldownProgress: cleaveRemain / cleave.cooldown,
+      bulwarkReady: bulwarkRemain === 0,
+      bulwarkCooldownProgress: bulwarkRemain / bulwark.cooldown,
+      dashReady: dashRemain === 0,
+      dashCooldownProgress: dashRemain / dash.cooldown
     };
+  }
+
+  public getDamage(): number {
+    return BALANCE.player.baseDamage * (1 + (this.weaponTier - 1) * 0.25);
   }
 }

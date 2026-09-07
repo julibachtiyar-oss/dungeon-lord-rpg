@@ -21,23 +21,19 @@ export default function TitleOverlay() {
 
   const handleStartGame = () => {
     unlockAudio();
-    BGM.start();
+    BGM.playTown();
+    EventBus.emitEvent('game:state', 'town');
+  };
+
+  const handleDirectDungeon = () => {
+    unlockAudio();
+    BGM.playDungeon();
     EventBus.emitEvent('game:start', undefined as unknown as void);
   };
 
   const handleOpenStoryPrologue = () => {
     unlockAudio();
-    BGM.start();
-    EventBus.emitEvent('story:dialogue', {
-      id: 1,
-      speaker: 'Elena (Guild Receptionist)',
-      text: 'Kontrak Rank-F: Selidiki Kuil Emberdeep. Petualang lain melapor adanya getaran kristal aneh dan kawanan monster ganas di lantai bawah. Berhati-hatilah, jangan mati konyol di sana.',
-      options: ['Saya Mengerti, Berangkat!', 'Apa Itu Emberdeep?']
-    });
-
-    EventBus.onEvent('story:choice', () => {
-      EventBus.emitEvent('game:start', undefined as unknown as void);
-    });
+    EventBus.emitEvent('game:state', 'prologue');
   };
 
   const toggleSound = () => {
@@ -123,7 +119,7 @@ export default function TitleOverlay() {
         >
           <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 pointer-events-none" />
           <Play size={18} className="fill-black" />
-          <span>MASUK DUNGEON SEKARANG</span>
+          <span>MASUK KOTA VALENROCK</span>
         </button>
 
         {/* Secondary: Story Prologue */}
@@ -132,7 +128,7 @@ export default function TitleOverlay() {
           className="w-full py-2.5 px-4 rounded-xl bg-black/70 hover:bg-black/90 border border-amber-500/50 text-amber-300 text-xs font-bold uppercase tracking-wider font-fantasy active:scale-95 transition-all flex items-center justify-center gap-2 backdrop-blur-md"
         >
           <BookOpen size={15} />
-          <span>BACA PROLOG CERITA (ELENA)</span>
+          <span>PROLOG KISAH ISEKAI</span>
         </button>
 
         {/* Tertiary: Codex & Guide */}
