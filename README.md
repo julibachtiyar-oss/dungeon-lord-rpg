@@ -1,60 +1,79 @@
-# Dungeon Lord: RPG & Sanctuary ⚔️🏰
+﻿# 🏰 Dungeon Lord: Chronicles of Inotia ⚔️
 
-Game Mobile Web RPG & Dungeon Tycoon yang dapat dimainkan langsung di browser smartphone atau dipasang ke layar utama HP (PWA).
+> **Game Mobile Action RPG & Dungeon Sanctuary Tycoon bergaya Retro Pixel Art Abad Pertengahan.**
+> Dibangun dengan React 19, Vite, HTML5 Canvas 2D Engine, Web Audio API, dan Progressive Web App (PWA).
 
----
-
-## 🎮 Dua Mode Permainan
-
-### 1. Mode Pengelolaan Dungeon (Sanctuary Tycoon)
-* **Jantung Dungeon (Core)**: Pusat kekuatan dan wilayah kekuasaan dungeon.
-* **Ruang Simpanan Goblin (Gold Vault)**: Menghasilkan Gold pasif setiap detik (bisa diklaim kapan saja saat online maupun offline).
-* **Sarang Monster Minion (Monster Den)**: Membiakkan minion penjaga dungeon dan menghasilkan Kristal Jiwa (Gems).
-* **Ruang Tempa Obsidian (Forge)**: Meng-upgrade statistik senjata dan perlengkapan zirah Hero.
-* **Kuali Alkimia (Alchemy Lab)**: Meracik ramuan pemulihan HP & Mana secara otomatis.
-* **Ruang Perangkap Maut (Trap Chamber)**: Melindungi dungeon dari penyusup dan memperkuat armor Hero.
-
-### 2. Mode Petualangan (Action RPG Dungeon Crawler)
-* **Pilihan Kelas Hero**:
-  * **Dragon Knight**: Petarung jarak dekat berzirah tebal, skill *Whirlwind Slash* (putaran pedang area) & *Iron Bastion* (tameng naga penyerap damage).
-  * **Astral Archmage**: Ahli mantra jarak jauh, skill *Meteor Fireball* (ledakan api besar) & *Frost Nova* (membekukan musuh).
-  * **Shadow Assassin**: Sangat lincah dan berkecepatan tinggi, skill *Shadow Blitz* (serangan kilat 100% crit) & *Poison Blades* (8 belati beracun).
-* **Kontrol Sentuh Khusus Smartphone**:
-  * Analog Virtual Joystick di kiri bawah layar (gerakan 360 derajat responsif).
-  * Tombol aksi di kanan bawah: Serang Utama, Skill 1, Skill 2, Dash / Menghindar, dan Quick Potion.
-* **Sistem Loot & Boss**:
-  * Kumpulkan senjata, zirah, dan relik bertingkat *Common*, *Rare*, *Epic*, hingga *Legendary*.
-  * Hadapi Gargoyle Overlord dan Lich King Malakor dengan animasi proyektil dan efek suara retro sintetis.
+[![Live Game](https://img.shields.io/badge/Live-dungeon--lord--rpg.vercel.app-gold?style=for-the-badge&logo=vercel)](https://dungeon-lord-rpg.vercel.app)
+[![GitHub Repo](https://img.shields.io/badge/GitHub-julibachtiyar--oss%2Fdungeon--lord--rpg-purple?style=for-the-badge&logo=github)](https://github.com/julibachtiyar-oss/dungeon-lord-rpg)
+[![PWA Ready](https://img.shields.io/badge/PWA-Mobile%20Ready-emerald?style=for-the-badge&logo=pwa)](https://dungeon-lord-rpg.vercel.app)
 
 ---
 
-## 🚀 Menjalankan Game Secara Lokal
+## 🌐 Mainkan Sekarang
+🎮 **Mainkan Langsung**: **[https://dungeon-lord-rpg.vercel.app](https://dungeon-lord-rpg.vercel.app)**  
+*(Dapat langsung dimainkan di browser smartphone Android/iOS maupun PC, serta dapat dipasang ke layar utama HP)*
 
-1. Buka folder proyek di terminal:
-   ```bash
-   cd C:\Users\julib\.gemini\antigravity\scratch\dungeon-lord-rpg
-   ```
-2. Jalankan server pengembangan Vite:
-   ```bash
+---
+
+## 📖 Alur Cerita & Fitur Permainan
+
+### 1. Bab 1: Isekai & Ibukota Valenrock
+* Terlempar ke dunia fantasi Eldoria melalui gerbang rune kuno.
+* Tentukan nama dan takdir kelas:
+  - 🛡️ **Black Knight**: Ksatria kegelapan berzirah obsidian dengan tebasan api Hellfire Cleave & Bastion of Torment.
+  - 🔮 **Astral Archmage**: Penyihir elemen bintang dengan proyektil Meteor Cataclysm & Glacial Frost Nova.
+  - 🗡️ **Shadow Assassin**: Pembunuh bayangan belati beracun dengan kecepatan tinggi & Poison Blades.
+* Laporkan diri ke **Elena** di Adventurer's Guild dan tempa perlengkapan pada **Borin** di Bengkel Tempa (+10).
+
+### 2. Ekspedisi Dungeon Liar (Inotia Action RPG)
+* Navigasi petualangan menggunakan **Virtual Analog Joystick** dan tombol skill di layar smartphone.
+* Hadapi kawanan monster: Slime, Goblin, Skeleton Archer, Orc Berserker.
+* Taklukkan Bos Penjaga Kuno: Ruin Golem & Gargoyle Overlord untuk merebut **Kristal Inti (Core Crystals)**!
+
+### 3. Rumah Bawah Tanah Kita (Sanctuary Mode)
+* Gunakan Kristal Inti hasil ekspedisi untuk membangun kerajaan bawah tanah pribadimu.
+* 48 petak pertahanan strategis:
+  - **Dungeon Core**: Pusat energi kerajaan.
+  - **Gold Vault**: Goblin tambang penghasil koin emas pasif.
+  - **Monster Den**: Membiakkan minion penjaga.
+  - **Bengkel Obsidian**: Peningkatan status perlengkapan.
+  - **Lab Alkimia**: Pembuatan ramuan otomatis.
+  - **Trap Chamber**: Jebakan duri & racun maut bagi penyerang luar.
+
+---
+
+## 🛠️ Tech Stack & Arsitektur
+- **Frontend**: React 19, Tailwind CSS, Lucide Icons, Canvas Confetti.
+- **Engine 2D**: HTML5 Canvas kustom dengan Retina High-DPI scaling (devicePixelRatio), partikel combat, dan kamera dinamis.
+- **Aset 2D**: Spritesheet pixel art retro 16x16 DawnLike.
+- **Audio Hybrid**: File musik tema kastil (.ogg) & pertempuran 8-bit (.opus) dengan fallback ke Polyphonic Web Audio API synthesis.
+- **Database Cloud (Opsional)**: Supabase PostgreSQL (Schema di supabase/schema.sql).
+- **Deployment**: Vercel Edge Network.
+
+---
+
+## 🤖 Panduan Pengembang & AI Handover
+Untuk dokumentasi arsitektur menyeluruh, skema database, panduan integrasi Supabase, dan aturan pengembangan bagi AI/developer, silakan baca file:
+👉 **[AI_MASTER_MANIFEST.md](./AI_MASTER_MANIFEST.md)**
+
+---
+
+## 💻 Menjalankan Game Secara Lokal
+
+1. **Clone repository**:
+   `ash
+   git clone https://github.com/julibachtiyar-oss/dungeon-lord-rpg.git
+   cd dungeon-lord-rpg
+   `
+2. **Install dependensi**:
+   `ash
+   npm install
+   `
+3. **Jalankan local development server**:
+   `ash
    npm run dev
-   ```
-3. Buka URL yang muncul di browser (misal: `http://localhost:5173`).
-4. Untuk membuka di HP yang satu jaringan WiFi, buka alamat Network IP yang tertera di terminal.
-
----
-
-## 📲 Memasang Game di HP (PWA - Add to Home Screen)
-
-1. Buka game melalui browser HP (Chrome / Safari / Edge).
-2. Tekan tombol **"Pasang di HP"** yang muncul di layar, atau buka menu browser lalu pilih **"Tambahkan ke Layar Utama" (Add to Home Screen)**.
-3. Game akan langsung terinstal layaknya aplikasi native tanpa frame browser dan mendukung permainan offline!
-
----
-
-## ☁️ Cara Deploy ke Vercel
-
-Game ini sudah dilengkapi konfigurasi `vercel.json`:
-```bash
-vercel
-```
-Atau hubungkan ke repository GitHub Anda untuk continuous deployment otomatis.
+   `
+4. **Build untuk produksi**:
+   `ash
+   npm run build
+   `
