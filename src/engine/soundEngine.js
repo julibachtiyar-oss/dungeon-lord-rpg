@@ -15,6 +15,16 @@ class InotiaSoundEngine {
     this.sfxVolume = 0.85;
     this.hapticsEnabled = true;
 
+    // External Audio Tracks (Real Medieval & 8-bit Soundtracks)
+    this.audioElement = null;
+    this.AUDIO_TRACKS = {
+      title: '/audio/title_theme.ogg',
+      sanctuary: '/audio/title_theme.ogg',
+      town: '/audio/title_theme.ogg',
+      dungeon: '/audio/dungeon_theme.opus',
+      boss: '/audio/boss_battle.opus'
+    };
+
     // Restore saved settings
     if (typeof window !== 'undefined') {
       try {
@@ -67,6 +77,9 @@ class InotiaSoundEngine {
     if (this.ctx && this.bgmGain) {
       this.bgmGain.gain.setValueAtTime(this.muted ? 0 : this.bgmVolume * 0.16, this.ctx.currentTime);
     }
+    if (this.audioElement) {
+      this.audioElement.volume = this.muted ? 0 : Math.max(0, Math.min(1, this.bgmVolume * 0.75));
+    }
     this.saveSettings();
   }
 
@@ -88,6 +101,14 @@ class InotiaSoundEngine {
         this.sfxGain.gain.setValueAtTime(isMuted ? 0 : this.sfxVolume * 0.35, this.ctx.currentTime);
       }
     }
+    if (this.audioElement) {
+      if (isMuted) {
+        this.audioElement.pause();
+      } else if (this.isPlayingBgm && this.currentTrack) {
+        this.audioElement.volume = Math.max(0, Math.min(1, this.bgmVolume * 0.75));
+        this.audioElement.play().catch(() => {});
+      }
+    }
     this.saveSettings();
   }
 
@@ -105,17 +126,46 @@ class InotiaSoundEngine {
     }
   }
 
-  // --- POLYPHONIC PROCEDURAL CHIPTUNE BGM 2.0 (3-Voice Harmonies) ---
+  // --- HYBRID BGM ENGINE: REAL SOUNDTRACKS + PROCEDURAL CHIPTUNE FALLBACK ---
   playBGM(track = 'sanctuary') {
     if (this.muted) return;
     this.init();
-    if (!this.ctx) return;
 
     if (this.currentTrack === track && this.isPlayingBgm) return;
     this.stopBGM();
 
     this.currentTrack = track;
     this.isPlayingBgm = true;
+
+    // 1. Attempt to play authentic external soundtrack file
+    const audioSrc = this.AUDIO_TRACKS ? this.AUDIO_TRACKS[track] : null;
+    if (audioSrc && typeof window !== 'undefined' && typeof Audio !== 'undefined') {
+      try {
+        if (!this.audioElement) {
+          this.audioElement = new Audio();
+          this.audioElement.loop = true;
+        }
+        this.audioElement.src = audioSrc;
+        this.audioElement.volume = this.muted ? 0 : Math.max(0, Math.min(1, this.bgmVolume * 0.75));
+        const playPromise = this.audioElement.play();
+        if (playPromise !== undefined) {
+          playPromise.catch((err) => {
+            console.warn('Real audio file playback prevented/pending user gesture, activating procedural synth:', err);
+            this.startProceduralBGM(track);
+          });
+        }
+        return;
+      } catch (e) {
+        console.warn('Real audio error, falling back to procedural:', e);
+      }
+    }
+
+    // 2. Fallback to procedural polyphonic chiptune
+    this.startProceduralBGM(track);
+  }
+
+  startProceduralBGM(track = 'sanctuary') {
+    if (this.muted || !this.ctx) return;
 
     // Track notes & polyphonic scales
     let melodyNotes = [];
@@ -129,7 +179,7 @@ class InotiaSoundEngine {
       counterMelody = [440.00, 523.25, 587.33, 523.25, 440.00, 392.00, 349.23, 329.63];
       bassNotes = [146.83, 174.61, 196.00, 146.83];
       tempo = 280;
-    } else if (track === 'sanctuary') {
+    } else if (track === 'sanctuary' || track === 'town') {
       // Dark Sanctuary / Dungeon Tycoon Theme (Atmospheric & Calm)
       melodyNotes = [220.00, 246.94, 261.63, 329.63, 293.66, 261.63, 246.94, 196.00];
       counterMelody = [329.63, 392.00, 440.00, 392.00, 329.63, 261.63, 293.66, 246.94];
@@ -218,9 +268,16 @@ class InotiaSoundEngine {
 
   stopBGM() {
     this.isPlayingBgm = false;
+    this.currentTrack = null;
     if (this.bgmTimer) {
       clearTimeout(this.bgmTimer);
       this.bgmTimer = null;
+    }
+    if (this.audioElement) {
+      try {
+        this.audioElement.pause();
+        this.audioElement.currentTime = 0;
+      } catch (e) {}
     }
   }
 

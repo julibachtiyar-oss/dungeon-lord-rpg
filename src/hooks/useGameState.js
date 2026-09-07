@@ -59,6 +59,12 @@ export function useGameState() {
           };
         });
 
+        let validatedGrid = Array.isArray(parsed.gridState) && parsed.gridState.length === 48
+          ? [...parsed.gridState]
+          : [...INITIAL_SANCTUARY_GRID];
+        if (validatedGrid.indexOf('portal') === -1) validatedGrid[1] = 'portal';
+        if (validatedGrid.indexOf('core') === -1) validatedGrid[46] = 'core';
+
         return {
           ...defaultState,
           ...parsed,
@@ -67,7 +73,7 @@ export function useGameState() {
           adventurerRank: parsed.adventurerRank || defaultState.adventurerRank,
           storyChapter: parsed.storyChapter !== undefined ? parsed.storyChapter : defaultState.storyChapter,
           dungeonHomeUnlocked: parsed.dungeonHomeUnlocked !== undefined ? parsed.dungeonHomeUnlocked : defaultState.dungeonHomeUnlocked,
-          gridState: parsed.gridState && parsed.gridState.length === 48 ? parsed.gridState : defaultState.gridState,
+          gridState: validatedGrid,
           rooms: mergedRooms,
           unclaimedGold: (parsed.unclaimedGold || 0) + offlineGold,
           lastSaved: now
@@ -97,7 +103,7 @@ export function useGameState() {
   useEffect(() => {
     const timer = setInterval(() => {
       setGameState(prev => {
-        const vaultCount = prev.gridState.filter(c => c === 'vault').length;
+        const vaultCount = Array.isArray(prev.gridState) ? prev.gridState.filter(c => c === 'vault').length : 1;
         const rate = Math.max(3.0, vaultCount * 4.0);
         return {
           ...prev,
@@ -115,7 +121,7 @@ export function useGameState() {
   // Calculate Inotia Total Stats (Base + All 7 Paperdoll Slots + Forge bonus + Level)
   const totalStats = useMemo(() => {
     const base = heroClass.baseStats;
-    const forgeCount = gameState.gridState.filter(c => c === 'forge').length;
+    const forgeCount = Array.isArray(gameState.gridState) ? gameState.gridState.filter(c => c === 'forge').length : 0;
     const forgeMultiplier = 1 + forgeCount * 0.15;
 
     let atk = base.attack * forgeMultiplier;

@@ -13,9 +13,10 @@ import {
   Plus, 
   X, 
   Sparkles,
-  Info
+  Info,
+  Grid
 } from 'lucide-react';
-import { GRID_COLS, GRID_ROWS, BUILDING_TYPES, INVADER_TYPES } from '../constants/dungeonSanctuary';
+import { GRID_COLS, GRID_ROWS, BUILDING_TYPES, INVADER_TYPES, INITIAL_SANCTUARY_GRID } from '../constants/dungeonSanctuary';
 import { LOOT_TABLE } from '../constants/items';
 import { sound } from '../engine/soundEngine';
 
@@ -29,6 +30,10 @@ export default function DungeonSanctuaryMap({
   onAddLoot,
   heroClass
 }) {
+  const safeGrid = Array.isArray(gridState) && gridState.length === 48
+    ? gridState
+    : (Array.isArray(INITIAL_SANCTUARY_GRID) ? [...INITIAL_SANCTUARY_GRID] : new Array(48).fill('empty'));
+
   const [selectedCellIdx, setSelectedCellIdx] = useState(null);
   const [invaders, setInvaders] = useState([]);
   const [minions, setMinions] = useState([]);
@@ -45,12 +50,13 @@ export default function DungeonSanctuaryMap({
     FlaskConical,
     DoorOpen,
     ShieldAlert,
-    Sparkles
+    Sparkles,
+    Grid
   };
 
   const handleDemolishFacility = () => {
-    if (selectedCellIdx === null) return;
-    const current = BUILDING_TYPES[gridState[selectedCellIdx]];
+    if (selectedCellIdx === null || selectedCellIdx < 0 || selectedCellIdx >= safeGrid.length) return;
+    const current = BUILDING_TYPES[safeGrid[selectedCellIdx]];
     if (!current || current.fixed || current.id === 'empty') return;
 
     sound.playAttackMelee();
@@ -58,15 +64,15 @@ export default function DungeonSanctuaryMap({
     if (refund > 0 && onAddRewards) {
       onAddRewards(refund, 0);
     }
-    const nextGrid = [...gridState];
+    const nextGrid = [...safeGrid];
     nextGrid[selectedCellIdx] = 'empty';
     onUpdateGrid(nextGrid, 0, 0, 0);
     setSelectedCellIdx(null);
   };
 
   // Find Portal cell index and Core cell index
-  const portalIdx = gridState.indexOf('portal');
-  const coreIdx = gridState.indexOf('core');
+  const portalIdx = safeGrid.indexOf('portal') !== -1 ? safeGrid.indexOf('portal') : 1;
+  const coreIdx = safeGrid.indexOf('core') !== -1 ? safeGrid.indexOf('core') : 46;
 
   // Spawn an Invader party
   const spawnInvaderWave = useCallback(() => {
@@ -103,10 +109,10 @@ export default function DungeonSanctuaryMap({
 
   // Synchronize Minions based on Spawner rooms
   useEffect(() => {
-    const spawnerCount = gridState.filter(cell => cell === 'spawner').length;
+    const spawnerCount = safeGrid.filter(cell => cell === 'spawner').length;
     const currentMinions = [];
 
-    gridState.forEach((cellType, idx) => {
+    safeGrid.forEach((cellType, idx) => {
       if (cellType === 'spawner') {
         currentMinions.push({
           id: `minion_${idx}_1`,
@@ -130,7 +136,7 @@ export default function DungeonSanctuaryMap({
     });
 
     setMinions(currentMinions);
-  }, [gridState]);
+  }, [safeGrid]);
 
   // Auto invasion wave every 28 seconds
   useEffect(() => {
@@ -156,10 +162,10 @@ export default function DungeonSanctuaryMap({
 
         for (const inv of prevInvaders) {
           let currentHp = inv.hp;
-          let currentCell = inv.cellIdx;
+          let currentCell = Math.max(0, Math.min(safeGrid.length - 1, inv.cellIdx));
 
           // 1. Move invader 1 step towards Core
-          const target = inv.targetCellIdx;
+          const target = Math.max(0, Math.min(safeGrid.length - 1, inv.targetCellIdx));
           const currCol = currentCell % GRID_COLS;
           const currRow = Math.floor(currentCell / GRID_COLS);
           const targetCol = target % GRID_COLS;
@@ -173,30 +179,32 @@ export default function DungeonSanctuaryMap({
           else if (currRow < targetRow) nextRow++;
           else if (currRow > targetRow) nextRow--;
 
+          nextCol = Math.max(0, Math.min(GRID_COLS - 1, nextCol));
+          nextRow = Math.max(0, Math.min(GRID_ROWS - 1, nextRow));
           let nextCell = nextRow * GRID_COLS + nextCol;
 
           // Wall Obstacle Collision Avoidance: if target is a wall, try bypass
-          if (gridState[nextCell] === 'wall') {
-            if (currRow < targetRow && gridState[(currRow + 1) * GRID_COLS + currCol] !== 'wall') {
+          if (safeGrid[nextCell] === 'wall') {
+            if (currRow < targetRow && currRow + 1 < GRID_ROWS && safeGrid[(currRow + 1) * GRID_COLS + currCol] !== 'wall') {
               nextRow = currRow + 1;
               nextCol = currCol;
-            } else if (currCol < targetCol && gridState[currRow * GRID_COLS + (currCol + 1)] !== 'wall') {
+            } else if (currCol < targetCol && currCol + 1 < GRID_COLS && safeGrid[currRow * GRID_COLS + (currCol + 1)] !== 'wall') {
               nextCol = currCol + 1;
               nextRow = currRow;
-            } else if (currCol > 0 && gridState[currRow * GRID_COLS + (currCol - 1)] !== 'wall') {
+            } else if (currCol > 0 && safeGrid[currRow * GRID_COLS + (currCol - 1)] !== 'wall') {
               nextCol = currCol - 1;
               nextRow = currRow;
             } else {
               nextRow = currRow;
               nextCol = currCol;
             }
-            nextCell = nextRow * GRID_COLS + nextCol;
+            nextCell = Math.max(0, Math.min(safeGrid.length - 1, nextRow * GRID_COLS + nextCol));
           }
 
           currentCell = nextCell;
 
           // Check Torture Chamber Debuff
-          if (gridState[currentCell] === 'torture') {
+          if (safeGrid[currentCell] === 'torture') {
             inv.attack = Math.max(5, Math.round(inv.attack * 0.65));
             setCombatEffects(prev => [
               ...prev,
@@ -210,7 +218,7 @@ export default function DungeonSanctuaryMap({
           }
 
           // 2. Check Trap on this cell
-          const building = BUILDING_TYPES[gridState[currentCell]];
+          const building = BUILDING_TYPES[safeGrid[currentCell]] || BUILDING_TYPES.empty;
           if (building && building.trapDamage) {
             currentHp -= building.trapDamage;
             sound.playCriticalHit();
@@ -308,11 +316,11 @@ export default function DungeonSanctuaryMap({
     }, 1400);
 
     return () => clearInterval(simTimer);
-  }, [gridState, minions, coreIdx, onAddRewards, onAddLoot]);
+  }, [safeGrid, minions, coreIdx, onAddRewards, onAddLoot]);
 
   // Handle building on cell
   const handleBuildFacility = (buildingKey) => {
-    if (selectedCellIdx === null) return;
+    if (selectedCellIdx === null || selectedCellIdx < 0 || selectedCellIdx >= safeGrid.length) return;
     const bDef = BUILDING_TYPES[buildingKey];
     if (!bDef) return;
 
@@ -326,13 +334,15 @@ export default function DungeonSanctuaryMap({
     }
 
     sound.playLevelUp();
-    const nextGrid = [...gridState];
+    const nextGrid = [...safeGrid];
     nextGrid[selectedCellIdx] = buildingKey;
     onUpdateGrid(nextGrid, bDef.costGold || 0, bDef.costGems || 0, bDef.costCrystals || 0);
     setSelectedCellIdx(null);
   };
 
-  const selectedBuilding = selectedCellIdx !== null ? BUILDING_TYPES[gridState[selectedCellIdx]] : null;
+  const selectedBuilding = selectedCellIdx !== null && selectedCellIdx >= 0 && selectedCellIdx < safeGrid.length
+    ? (BUILDING_TYPES[safeGrid[selectedCellIdx]] || BUILDING_TYPES.empty)
+    : null;
 
   return (
     <div className="w-full flex flex-col items-center space-y-3 p-3">
@@ -370,7 +380,7 @@ export default function DungeonSanctuaryMap({
       <div className="w-full max-w-md bg-dungeon-950 p-2.5 rounded-3xl border-2 border-dungeon-700/80 shadow-2xl relative overflow-hidden">
         {/* Background Dungeon Stone Texture Overlay */}
         <div className="grid grid-cols-8 gap-1.5 select-none relative">
-          {gridState.map((cellType, idx) => {
+          {safeGrid.map((cellType, idx) => {
             const building = BUILDING_TYPES[cellType] || BUILDING_TYPES.empty;
             const Icon = iconMap[building.icon] || Skull;
             const isSelected = selectedCellIdx === idx;

@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { DUNGEON_ROOMS_TEMPLATE } from '../constants/rooms';
 import { HERO_CLASSES } from '../constants/classes';
+import { INITIAL_SANCTUARY_GRID } from '../constants/dungeonSanctuary';
 import DungeonSanctuaryMap from './DungeonSanctuaryMap';
 import { sound } from '../engine/soundEngine';
 
@@ -277,7 +278,7 @@ export default function DungeonManagement({
         {/* View 1: Visual Interactive Grid Map with NPC Invaders */}
         {managementView === 'map' && (
           <DungeonSanctuaryMap
-            gridState={gridState}
+            gridState={Array.isArray(gridState) && gridState.length === 48 ? gridState : INITIAL_SANCTUARY_GRID}
             onUpdateGrid={onUpdateGrid}
             gold={gold}
             gems={gems}

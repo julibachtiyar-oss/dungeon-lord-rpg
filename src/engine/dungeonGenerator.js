@@ -1,13 +1,21 @@
-import { MONSTER_TYPES } from '../constants/monsters';
+import { MONSTER_TYPES } from '../constants/monsters.js';
 
-export function generateDungeon({ floorConfig, mapWidth = 2400, mapHeight = 1800 }) {
+export function generateDungeon({ floorConfig, mapWidth = 2400, mapHeight = 1800 } = {}) {
+  const config = floorConfig || {
+    floorNumber: 1,
+    name: 'Whispering Ruins',
+    roomsCount: 4,
+    monsterPool: ['slime', 'goblin'],
+    bossType: 'boss_gargoyle'
+  };
+
   const rooms = [];
   const walls = [];
   const torches = [];
   const chests = [];
   const monsters = [];
 
-  const numRooms = floorConfig.roomsCount || 5;
+  const numRooms = config.roomsCount || 4;
   const roomSizes = [
     { w: 380, h: 320 },
     { w: 450, h: 360 },
@@ -70,7 +78,7 @@ export function generateDungeon({ floorConfig, mapWidth = 2400, mapHeight = 1800
         y: ry + size.h / 2 + (Math.random() * 60 - 30),
         opened: false,
         radius: 18,
-        gold: Math.floor(25 + Math.random() * 50 * floorConfig.floorNumber)
+        gold: Math.floor(25 + Math.random() * 50 * (config.floorNumber || 1))
       });
     }
 
@@ -78,41 +86,44 @@ export function generateDungeon({ floorConfig, mapWidth = 2400, mapHeight = 1800
     if (!isStart) {
       if (isBoss) {
         // Spawn Floor Boss
-        const bossDef = MONSTER_TYPES[floorConfig.bossType];
+        const bossKey = config.bossType || 'boss_gargoyle';
+        const bossDef = MONSTER_TYPES[bossKey] || MONSTER_TYPES.boss_gargoyle;
         monsters.push({
-          id: `boss_${floorConfig.bossType}_${Date.now()}`,
-          type: floorConfig.bossType,
-          name: bossDef.name,
+          id: `boss_${bossKey}_${Date.now()}`,
+          type: bossKey,
+          name: bossDef.name || 'Gargoyle Overlord [BOSS]',
           isBoss: true,
           x: pos.cx,
           y: pos.cy,
-          radius: bossDef.radius,
-          maxHp: bossDef.maxHp,
-          hp: bossDef.maxHp,
-          attack: bossDef.attack,
-          defense: bossDef.defense,
-          speed: bossDef.speed,
-          color: bossDef.color,
-          glowColor: bossDef.glowColor,
-          behavior: bossDef.behavior,
-          attackCooldown: bossDef.attackCooldown,
+          radius: bossDef.radius || 34,
+          maxHp: bossDef.maxHp || 750,
+          hp: bossDef.maxHp || 750,
+          attack: bossDef.attack || 38,
+          defense: bossDef.defense || 16,
+          speed: bossDef.speed || 1.5,
+          color: bossDef.color || '#a855f7',
+          glowColor: bossDef.glowColor || 'rgba(168, 85, 247, 0.7)',
+          behavior: bossDef.behavior || 'boss_complex',
+          attackCooldown: bossDef.attackCooldown || 2.2,
           cooldownTimer: 0,
           vx: 0,
           vy: 0,
           roomIndex: i,
-          xpReward: bossDef.xpReward,
-          goldReward: bossDef.goldReward,
-          gemReward: bossDef.gemReward
+          xpReward: bossDef.xpReward || 300,
+          goldReward: bossDef.goldReward || [150, 300],
+          gemReward: bossDef.gemReward || [5, 10]
         });
       } else {
         // Spawn Normal Mob pack with ~30% Elite Champions
-        const count = 3 + floorConfig.floorNumber;
+        const count = 3 + (config.floorNumber || 1);
         const AFFIXES = ['Molten', 'Vampiric', 'Blink', 'Ironhide'];
 
         for (let m = 0; m < count; m++) {
-          const pool = floorConfig.monsterPool;
+          const pool = Array.isArray(config.monsterPool) && config.monsterPool.length > 0
+            ? config.monsterPool
+            : ['slime', 'goblin'];
           const typeKey = pool[Math.floor(Math.random() * pool.length)];
-          const mobDef = MONSTER_TYPES[typeKey];
+          const mobDef = MONSTER_TYPES[typeKey] || MONSTER_TYPES.slime;
 
           // 30% chance for Elite Champion in rooms > 0
           const isElite = Math.random() < 0.32;
@@ -209,8 +220,12 @@ export function generateDungeon({ floorConfig, mapWidth = 2400, mapHeight = 1800
 
 // Check if a point (x, y) with radius r is inside valid walkable dungeon space
 export function isInsideWalkableDungeon(x, y, r, dungeon) {
+  if (!dungeon || !Array.isArray(dungeon.rooms) || !Array.isArray(dungeon.corridors)) {
+    return true;
+  }
+
   // Check bounds
-  if (x - r < 40 || x + r > dungeon.mapWidth - 40 || y - r < 40 || y + r > dungeon.mapHeight - 40) {
+  if (x - r < 40 || x + r > (dungeon.mapWidth || 2400) - 40 || y - r < 40 || y + r > (dungeon.mapHeight || 1800) - 40) {
     return false;
   }
 

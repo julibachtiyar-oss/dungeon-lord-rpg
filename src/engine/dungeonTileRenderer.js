@@ -1,23 +1,71 @@
 // Dungeon Tile & Environment Renderer for Medieval Gothic Visuals
 
+const tileCache = {};
+function getTileImage(name, path) {
+  if (typeof window === 'undefined') return null;
+  if (!tileCache[name]) {
+    const img = new Image();
+    img.src = path;
+    tileCache[name] = img;
+  }
+  return tileCache[name];
+}
+
 export class DungeonTileRenderer {
   // Draw textured room floor with flagstones & ancient runes
   static drawRoom(ctx, room, time) {
     ctx.save();
 
-    // 1. Room Floor Base
     const isBoss = room.isBoss;
-    ctx.fillStyle = isBoss ? '#1a1026' : room.isStart ? '#0f231a' : '#141b26';
-    ctx.fillRect(room.x, room.y, room.w, room.h);
+    const floorImg = getTileImage('floor', '/sprites/floor.png');
+    const wallImg = getTileImage('wall', '/sprites/wall.png');
 
-    // 2. Cobblestone Flagstones Grid
-    ctx.strokeStyle = isBoss ? 'rgba(168, 85, 247, 0.08)' : 'rgba(255, 255, 255, 0.04)';
-    ctx.lineWidth = 1.5;
+    // 1. Room Floor Base (2D DawnLike Tiles if loaded, else procedural)
+    if (floorImg && floorImg.complete && floorImg.naturalWidth > 0) {
+      ctx.imageSmoothingEnabled = false;
+      const tileSize = 36;
+      const srcTileX = isBoss ? 32 : (room.isStart ? 48 : 0);
+      const srcTileY = isBoss ? 32 : (room.isStart ? 16 : 0);
 
-    const tileSize = 40;
-    for (let x = room.x; x < room.x + room.w; x += tileSize) {
-      for (let y = room.y; y < room.y + room.h; y += tileSize) {
-        ctx.strokeRect(x, y, tileSize, tileSize);
+      for (let x = room.x; x < room.x + room.w; x += tileSize) {
+        for (let y = room.y; y < room.y + room.h; y += tileSize) {
+          const drawW = Math.min(tileSize, room.x + room.w - x);
+          const drawH = Math.min(tileSize, room.y + room.h - y);
+          ctx.drawImage(floorImg, srcTileX, srcTileY, 16, 16, x, y, drawW, drawH);
+        }
+      }
+
+      // Tint overlay
+      ctx.fillStyle = isBoss ? 'rgba(88, 28, 135, 0.25)' : (room.isStart ? 'rgba(6, 95, 70, 0.2)' : 'rgba(15, 23, 42, 0.25)');
+      ctx.fillRect(room.x, room.y, room.w, room.h);
+    } else {
+      ctx.fillStyle = isBoss ? '#1a1026' : room.isStart ? '#0f231a' : '#141b26';
+      ctx.fillRect(room.x, room.y, room.w, room.h);
+
+      ctx.strokeStyle = isBoss ? 'rgba(168, 85, 247, 0.08)' : 'rgba(255, 255, 255, 0.04)';
+      ctx.lineWidth = 1.5;
+
+      const tileSize = 40;
+      for (let x = room.x; x < room.x + room.w; x += tileSize) {
+        for (let y = room.y; y < room.y + room.h; y += tileSize) {
+          ctx.strokeRect(x, y, tileSize, tileSize);
+        }
+      }
+    }
+
+    // 2. 2D Medieval Wall Borders
+    if (wallImg && wallImg.complete && wallImg.naturalWidth > 0) {
+      ctx.imageSmoothingEnabled = false;
+      const wallSize = 24;
+      // Top wall trim
+      for (let x = room.x; x < room.x + room.w; x += wallSize) {
+        ctx.drawImage(wallImg, 0, 0, 16, 16, x, room.y - 8, wallSize, wallSize);
+        ctx.drawImage(wallImg, 0, 0, 16, 16, x, room.y + room.h - 16, wallSize, wallSize);
+      }
+      // Left and right wall trim
+      for (let y = room.y; y < room.y + room.h; y += wallSize) {
+        ctx.drawImage(wallImg, 16, 0, 16, 16, room.x - 8, y, wallSize, wallSize);
+        ctx.drawImage(wallImg, 16, 0, 16, 16, room.x + room.w - 16, y, wallSize, wallSize);
       }
     }
 
@@ -70,13 +118,29 @@ export class DungeonTileRenderer {
   // Draw Corridors with textured stone pavers
   static drawCorridor(ctx, corr) {
     ctx.save();
-    ctx.fillStyle = '#111827';
-    ctx.fillRect(corr.x, corr.y, corr.w, corr.h);
 
-    // Corridor paver seams
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(corr.x, corr.y, corr.w, corr.h);
+    const floorImg = getTileImage('floor', '/sprites/floor.png');
+    if (floorImg && floorImg.complete && floorImg.naturalWidth > 0) {
+      ctx.imageSmoothingEnabled = false;
+      const tileSize = 30;
+      for (let x = corr.x; x < corr.x + corr.w; x += tileSize) {
+        for (let y = corr.y; y < corr.y + corr.h; y += tileSize) {
+          const drawW = Math.min(tileSize, corr.x + corr.w - x);
+          const drawH = Math.min(tileSize, corr.y + corr.h - y);
+          ctx.drawImage(floorImg, 16, 16, 16, 16, x, y, drawW, drawH);
+        }
+      }
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.4)';
+      ctx.fillRect(corr.x, corr.y, corr.w, corr.h);
+    } else {
+      ctx.fillStyle = '#111827';
+      ctx.fillRect(corr.x, corr.y, corr.w, corr.h);
+
+      // Corridor paver seams
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(corr.x, corr.y, corr.w, corr.h);
+    }
 
     // Border stone trims
     ctx.strokeStyle = '#334155';

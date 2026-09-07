@@ -1,7 +1,18 @@
-// High-Fidelity Procedural Sprite Engine for Inotia-Grade Mobile RPG
+// High-Fidelity 2D Pixel Sprite Engine with Procedural Fallbacks for Inotia ARPG
+
+const spriteCache = {};
+function getSpriteImage(name, path) {
+  if (typeof window === 'undefined') return null;
+  if (!spriteCache[name]) {
+    const img = new Image();
+    img.src = path;
+    spriteCache[name] = img;
+  }
+  return spriteCache[name];
+}
 
 export class SpriteRenderer {
-  // Draw Hero with animated cape, armor, helmet, weapon, and attack trail
+  // Draw Hero with authentic 2D DawnLike Pixel Sprite or procedural armor
   static drawHero(ctx, player, heroClass, time) {
     ctx.save();
     ctx.translate(player.x, player.y);
@@ -21,89 +32,104 @@ export class SpriteRenderer {
       ctx.globalAlpha = 0.35;
     }
 
-    // 2. Flowing Cape (Drawn behind body)
-    ctx.save();
-    ctx.rotate(player.facingAngle + Math.PI); // Trails behind hero
-    ctx.fillStyle = heroClass.id === 'warrior' ? '#7f1d1d' : heroClass.id === 'mage' ? '#1e1b4b' : '#14532d';
-    ctx.strokeStyle = '#000000';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(-6, -4);
-    ctx.quadraticCurveTo(
-      -18 - Math.sin(time * 7) * 4,
-      capeFlutter * 20,
-      -26,
-      -8 + Math.cos(time * 6) * 5
-    );
-    ctx.quadraticCurveTo(
-      -22,
-      8 + Math.cos(time * 6) * 5,
-      -6,
-      6
-    );
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-    ctx.restore();
+    const playerImg = getSpriteImage('player', '/sprites/player.png');
+    let drew2DSprite = false;
 
-    // 3. Feet / Armored Boots (Moving cycle)
-    const legOffset = isMoving ? Math.sin(time * 12) * 5 : 0;
-    ctx.fillStyle = '#1e293b';
-    ctx.strokeStyle = '#0f172a';
-    ctx.lineWidth = 1.5;
+    if (playerImg && playerImg.complete && playerImg.naturalWidth > 0) {
+      // DawnLike Player rows: 0=Warrior, 2=Mage, 4=Assassin
+      const row = heroClass.id === 'mage' ? 2 : heroClass.id === 'assassin' ? 4 : 0;
+      const angle = player.facingAngle;
+      let colDir = 0; // Down
+      if (Math.abs(angle) < Math.PI / 4) colDir = 6; // Right
+      else if (Math.abs(angle) > (3 * Math.PI) / 4) colDir = 4; // Left
+      else if (angle < 0) colDir = 2; // Up
+      else colDir = 0; // Down
 
-    // Left Boot
-    ctx.fillRect(-9, 10 + legOffset + walkBob, 6, 8);
-    ctx.strokeRect(-9, 10 + legOffset + walkBob, 6, 8);
-    // Right Boot
-    ctx.fillRect(3, 10 - legOffset + walkBob, 6, 8);
-    ctx.strokeRect(3, 10 - legOffset + walkBob, 6, 8);
+      const walkFrame = isMoving ? (Math.floor(time * 8) % 2) : 0;
+      const spriteX = (colDir + walkFrame) * 16;
+      const spriteY = row * 16;
 
-    // 4. Armored Torso / Breastplate
-    ctx.save();
-    ctx.translate(0, walkBob);
+      ctx.save();
+      ctx.imageSmoothingEnabled = false;
+      // Draw 16x16 crisp DawnLike pixel sprite scaled to 36x36
+      ctx.drawImage(playerImg, spriteX, spriteY, 16, 16, -18, -20 + walkBob, 36, 36);
+      ctx.restore();
+      drew2DSprite = true;
+    }
 
-    // Body gradient
-    const bodyGrad = ctx.createLinearGradient(-10, -10, 10, 10);
-    bodyGrad.addColorStop(0, heroClass.color);
-    bodyGrad.addColorStop(1, '#0f172a');
-    ctx.fillStyle = bodyGrad;
-    ctx.strokeStyle = '#000000';
-    ctx.lineWidth = 2;
+    if (!drew2DSprite) {
+      // 2. Flowing Cape (Drawn behind body)
+      ctx.save();
+      ctx.rotate(player.facingAngle + Math.PI); // Trails behind hero
+      ctx.fillStyle = heroClass.id === 'warrior' ? '#7f1d1d' : heroClass.id === 'mage' ? '#1e1b4b' : '#14532d';
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(-6, -4);
+      ctx.quadraticCurveTo(
+        -18 - Math.sin(time * 7) * 4,
+        capeFlutter * 20,
+        -26,
+        -8 + Math.cos(time * 6) * 5
+      );
+      ctx.quadraticCurveTo(
+        -22,
+        8 + Math.cos(time * 6) * 5,
+        -6,
+        6
+      );
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
 
-    // Torso armor shape
-    ctx.beginPath();
-    ctx.moveTo(-11, -6);
-    ctx.lineTo(11, -6);
-    ctx.lineTo(8, 11);
-    ctx.lineTo(-8, 11);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
+      // 3. Feet / Armored Boots (Moving cycle)
+      const legOffset = isMoving ? Math.sin(time * 12) * 5 : 0;
+      ctx.fillStyle = '#1e293b';
+      ctx.strokeStyle = '#0f172a';
+      ctx.lineWidth = 1.5;
 
-    // Gold/Steel Breastplate Trim
-    ctx.strokeStyle = '#facc15';
-    ctx.lineWidth = 1.5;
-    ctx.strokeRect(-6, -3, 12, 10);
+      // Left Boot
+      ctx.fillRect(-9, 10 + legOffset + walkBob, 6, 8);
+      ctx.strokeRect(-9, 10 + legOffset + walkBob, 6, 8);
+      // Right Boot
+      ctx.fillRect(3, 10 - legOffset + walkBob, 6, 8);
+      ctx.strokeRect(3, 10 - legOffset + walkBob, 6, 8);
 
-    // Shoulder Pauldrons
-    ctx.fillStyle = '#334155';
-    ctx.beginPath();
-    ctx.arc(-12, -4, 5, 0, Math.PI * 2);
-    ctx.arc(12, -4, 5, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = '#000000';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
+      // 4. Armored Torso / Breastplate
+      ctx.save();
+      ctx.translate(0, walkBob);
 
-    // 5. Head / Helmet with Class Visor
-    ctx.fillStyle = '#1e293b';
-    ctx.beginPath();
-    ctx.arc(0, -13, 9, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = '#000000';
-    ctx.lineWidth = 2;
-    ctx.stroke();
+      const bodyGrad = ctx.createLinearGradient(-10, -10, 10, 10);
+      bodyGrad.addColorStop(0, heroClass.color);
+      bodyGrad.addColorStop(1, '#0f172a');
+      ctx.fillStyle = bodyGrad;
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 2;
+
+      ctx.beginPath();
+      ctx.moveTo(-11, -6);
+      ctx.lineTo(11, -6);
+      ctx.lineTo(8, 11);
+      ctx.lineTo(-8, 11);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Pauldrons
+      ctx.fillStyle = '#334155';
+      ctx.beginPath();
+      ctx.arc(-12, -4, 5, 0, Math.PI * 2);
+      ctx.arc(12, -4, 5, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Head
+      ctx.fillStyle = '#1e293b';
+      ctx.beginPath();
+      ctx.arc(0, -13, 9, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
 
     if (heroClass.id === 'warrior') {
       // Horned Dark Knight Helmet Visor
@@ -351,37 +377,86 @@ export class SpriteRenderer {
 
     const isHit = m.flashTimer > 0;
 
-    if (m.type === 'slime') {
-      // Slime: Jelly Wobble Body
-      const wobbleX = 1 + Math.sin(time * 7 + m.x) * 0.14;
-      const wobbleY = 1 - Math.sin(time * 7 + m.x) * 0.14;
-      ctx.scale(wobbleX, wobbleY);
+    const slimeImg = getSpriteImage('slime', '/sprites/slime.png');
+    const undeadImg = getSpriteImage('undead', '/sprites/undead.png');
+    const demonImg = getSpriteImage('demon', '/sprites/demon.png');
+    const humanoidImg = getSpriteImage('humanoid', '/sprites/humanoid.png');
 
-      const slimeGrad = ctx.createRadialGradient(0, -4, 2, 0, 0, m.radius);
-      slimeGrad.addColorStop(0, isHit ? '#ffffff' : '#86efac');
-      slimeGrad.addColorStop(0.7, isHit ? '#ffffff' : '#22c55e');
-      slimeGrad.addColorStop(1, isHit ? '#ffffff' : '#15803d');
+    let drewMonster2D = false;
+    const walkFrame = Math.floor(time * 7) % 2;
 
-      ctx.fillStyle = slimeGrad;
-      ctx.strokeStyle = '#052e16';
-      ctx.lineWidth = 2;
+    if (m.type === 'slime' && slimeImg && slimeImg.complete && slimeImg.naturalWidth > 0) {
+      ctx.save();
+      ctx.imageSmoothingEnabled = false;
+      const bounce = Math.abs(Math.sin(time * 8)) * 3;
+      ctx.drawImage(slimeImg, walkFrame * 16, 0, 16, 16, -m.radius, -m.radius - bounce, m.radius * 2, m.radius * 2 + bounce);
+      ctx.restore();
+      drewMonster2D = true;
+    } else if (m.type === 'goblin' && humanoidImg && humanoidImg.complete && humanoidImg.naturalWidth > 0) {
+      ctx.save();
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(humanoidImg, walkFrame * 16, 0, 16, 16, -18, -20, 36, 36);
+      ctx.restore();
+      drewMonster2D = true;
+    } else if (m.type === 'skeleton_archer' && undeadImg && undeadImg.complete && undeadImg.naturalWidth > 0) {
+      ctx.save();
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(undeadImg, walkFrame * 16, 0, 16, 16, -18, -22, 36, 36);
+      ctx.restore();
+      drewMonster2D = true;
+    } else if (m.type === 'orc_berserker' && humanoidImg && humanoidImg.complete && humanoidImg.naturalWidth > 0) {
+      ctx.save();
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(humanoidImg, walkFrame * 16, 32, 16, 16, -24, -26, 48, 48);
+      ctx.restore();
+      drewMonster2D = true;
+    } else if (m.isBoss && m.type === 'boss_gargoyle' && demonImg && demonImg.complete && demonImg.naturalWidth > 0) {
+      ctx.save();
+      ctx.imageSmoothingEnabled = false;
+      const bossBob = Math.sin(time * 4) * 3;
+      ctx.drawImage(demonImg, walkFrame * 16, 0, 16, 16, -36, -38 + bossBob, 72, 72);
+      ctx.restore();
+      drewMonster2D = true;
+    } else if (m.isBoss && m.type === 'boss_necromancer' && undeadImg && undeadImg.complete && undeadImg.naturalWidth > 0) {
+      ctx.save();
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(undeadImg, walkFrame * 16, 32, 16, 16, -36, -40, 72, 72);
+      ctx.restore();
+      drewMonster2D = true;
+    }
 
-      ctx.beginPath();
-      ctx.arc(0, 0, m.radius, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
+    if (!drewMonster2D) {
+      if (m.type === 'slime') {
+        // Slime: Jelly Wobble Body
+        const wobbleX = 1 + Math.sin(time * 7 + m.x) * 0.14;
+        const wobbleY = 1 - Math.sin(time * 7 + m.x) * 0.14;
+        ctx.scale(wobbleX, wobbleY);
 
-      // Slime Eyes
-      ctx.fillStyle = '#ef4444';
-      ctx.beginPath();
-      ctx.arc(-4, -2, 2.5, 0, Math.PI * 2);
-      ctx.arc(4, -2, 2.5, 0, Math.PI * 2);
-      ctx.fill();
+        const slimeGrad = ctx.createRadialGradient(0, -4, 2, 0, 0, m.radius);
+        slimeGrad.addColorStop(0, isHit ? '#ffffff' : '#86efac');
+        slimeGrad.addColorStop(0.7, isHit ? '#ffffff' : '#22c55e');
+        slimeGrad.addColorStop(1, isHit ? '#ffffff' : '#15803d');
 
-    } else if (m.type === 'goblin') {
-      // Goblin Scout: Pointy ears, tattered leather, dagger
-      const bob = Math.sin(time * 8) * 2;
-      ctx.translate(0, bob);
+        ctx.fillStyle = slimeGrad;
+        ctx.strokeStyle = '#052e16';
+        ctx.lineWidth = 2;
+
+        ctx.beginPath();
+        ctx.arc(0, 0, m.radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        // Slime Eyes
+        ctx.fillStyle = '#ef4444';
+        ctx.beginPath();
+        ctx.arc(-4, -2, 2.5, 0, Math.PI * 2);
+        ctx.arc(4, -2, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+
+      } else if (m.type === 'goblin') {
+        // Goblin Scout: Pointy ears, tattered leather, dagger
+        const bob = Math.sin(time * 8) * 2;
+        ctx.translate(0, bob);
 
       // Pointy Ears
       ctx.fillStyle = isHit ? '#ffffff' : '#eab308';
@@ -576,6 +651,7 @@ export class SpriteRenderer {
       ctx.arc(m.radius * 0.35, -m.radius * 0.2, 3, 0, Math.PI * 2);
       ctx.fill();
     }
+  }
 
     // Health Bar & Name Display
     const barW = Math.max(32, m.radius * 2.2);
@@ -601,12 +677,9 @@ export class SpriteRenderer {
       ctx.shadowBlur = 0;
     }
 
-    // HP Bar background
+    // Background HP track
     ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
     ctx.fillRect(-barW / 2, barY, barW, barH);
-    ctx.strokeStyle = m.isElite ? '#facc15' : '#0f172a';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(-barW / 2, barY, barW, barH);
 
     // HP Bar fill
     ctx.fillStyle = m.isBoss ? (m.isEnraged ? '#dc2626' : '#c084fc') : m.isElite ? '#f59e0b' : '#ef4444';
@@ -629,21 +702,36 @@ export class SpriteRenderer {
     const bob = Math.sin(time * 9) * 2;
     ctx.translate(0, bob);
 
-    // Body
-    ctx.fillStyle = merc.color;
-    ctx.beginPath();
-    ctx.arc(0, 0, 13, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = '#facc15';
-    ctx.lineWidth = 2.5;
-    ctx.stroke();
+    const humanoidImg = getSpriteImage('humanoid', '/sprites/humanoid.png');
+    let drewMerc2D = false;
 
-    // Eyes
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    ctx.arc(-3, -2, 2.5, 0, Math.PI * 2);
-    ctx.arc(3, -2, 2.5, 0, Math.PI * 2);
-    ctx.fill();
+    if (humanoidImg && humanoidImg.complete && humanoidImg.naturalWidth > 0) {
+      ctx.save();
+      ctx.imageSmoothingEnabled = false;
+      const walkFrame = Math.floor(time * 6) % 2;
+      // Row 4 for paladin/companion
+      ctx.drawImage(humanoidImg, walkFrame * 16, 64, 16, 16, -18, -20, 36, 36);
+      ctx.restore();
+      drewMerc2D = true;
+    }
+
+    if (!drewMerc2D) {
+      // Body
+      ctx.fillStyle = merc.color;
+      ctx.beginPath();
+      ctx.arc(0, 0, 13, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#facc15';
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+
+      // Eyes
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(-3, -2, 2.5, 0, Math.PI * 2);
+      ctx.arc(3, -2, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
 
     // Mercenary Companion Crown Badge
     ctx.fillStyle = '#facc15';
